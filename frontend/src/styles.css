@@ -1,0 +1,111 @@
+:root {
+  color: #1f2937;
+  background: #eef2f7;
+  font-family: Inter, "Segoe UI", "Microsoft YaHei", Arial, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+}
+
+.app-shell {
+  min-height: 100vh;
+}
+
+.sidebar {
+  background: #172033;
+  color: #f8fafc;
+  border-right: 1px solid #0f172a;
+}
+
+.brand {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  height: 72px;
+  padding: 0 18px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.brand-mark {
+  display: inline-grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border-radius: 8px;
+  background: #16a34a;
+  font-weight: 700;
+}
+
+.brand strong,
+.brand small {
+  display: block;
+}
+
+.brand small {
+  margin-top: 2px;
+  color: #b6c2d3;
+}
+
+.nav-menu {
+  border-right: 0;
+  background: transparent;
+}
+
+.nav-menu .el-menu-item {
+  color: #d9e2ef;
+}
+
+.nav-menu .el-menu-item.is-active {
+  color: #ffffff;
+  background: rgba(22, 163, 74, 0.2);
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 72px;
+  padding: 0 28px;
+  background: #ffffff;
+  border-bottom: 1px solid #d9e2ec;
+}
+
+.topbar h1 {
+  margin: 0;
+  font-size: 20px;
+  line-height: 1.4;
+}
+
+.topbar p {
+  margin: 2px 0 0;
+  color: #607086;
+  font-size: 13px;
+}
+
+.content {
+  padding: 24px 28px;
+}
+
+.workspace-panel {
+  min-height: 240px;
+  padding: 24px;
+  background: #ffffff;
+  border: 1px solid #d9e2ec;
+  border-radius: 8px;
+}
+
+.section-heading h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.section-heading p {
+  margin: 8px 0 0;
+  color: #607086;
+}
