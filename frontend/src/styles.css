@@ -92,7 +92,7 @@ body {
   padding: 24px 28px;
 }
 
-.workspace-panel {
+.page-section {
   min-height: 240px;
   padding: 24px;
   background: #ffffff;
@@ -100,12 +100,147 @@ body {
   border-radius: 8px;
 }
 
-.section-heading h2 {
+.narrow-page {
+  max-width: 900px;
+}
+
+.page-toolbar {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.page-toolbar h2 {
   margin: 0;
   font-size: 18px;
 }
 
-.section-heading p {
+.page-toolbar p {
   margin: 8px 0 0;
   color: #607086;
+}
+
+.toolbar-actions,
+.action-strip {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.action-strip {
+  margin-bottom: 16px;
+}
+
+.task-select {
+  width: 280px;
+}
+
+.two-column {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 20px;
+}
+
+.settings-block {
+  margin-top: 18px;
+  padding: 18px;
+  border: 1px solid #d9e2ec;
+  border-radius: 8px;
+  background: #fbfdff;
+}
+
+.settings-block h3 {
+  margin: 0 0 16px;
+  font-size: 16px;
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.summary-cell {
+  min-height: 80px;
+  padding: 14px 16px;
+  border: 1px solid #d9e2ec;
+  border-radius: 8px;
+  background: #fbfdff;
+}
+
+.summary-cell span {
+  display: block;
+  margin-bottom: 12px;
+  color: #607086;
+  font-size: 13px;
+}
+
+.metric-table {
+  width: 100%;
+}
+
+.muted {
+  color: #607086;
+}
+
+.unit-label {
+  margin-left: 8px;
+  color: #607086;
+}
+
+.report-content {
+  max-width: 980px;
+  line-height: 1.75;
+}
+
+.report-content h1 {
+  font-size: 24px;
+  margin: 0 0 20px;
+}
+
+.report-content h2 {
+  margin-top: 28px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #d9e2ec;
+  font-size: 18px;
+}
+
+.report-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 12px 0;
+}
+
+.report-content th,
+.report-content td {
+  padding: 8px 10px;
+  border: 1px solid #d9e2ec;
+  text-align: left;
+}
+
+@media (max-width: 900px) {
+  .sidebar {
+    display: none;
+  }
+
+  .topbar,
+  .page-toolbar {
+    align-items: flex-start;
+    flex-direction: column;
+    height: auto;
+    padding: 18px;
+  }
+
+  .content {
+    padding: 16px;
+  }
+
+  .two-column,
+  .summary-grid {
+    grid-template-columns: 1fr;
+  }
 }

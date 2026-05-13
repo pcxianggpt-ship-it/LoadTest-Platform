@@ -1,15 +1,10 @@
 import { createRouter, createWebHistory } from "vue-router";
-
-const ProjectList = {
-  template: `
-    <section class="workspace-panel">
-      <div class="section-heading">
-        <h2>项目</h2>
-        <p>前端骨架已就绪，下一步会接入项目、任务、执行、结果和报告页面。</p>
-      </div>
-    </section>
-  `,
-};
+import ExecutionList from "./views/ExecutionList.vue";
+import ProjectDetail from "./views/ProjectDetail.vue";
+import ProjectList from "./views/ProjectList.vue";
+import ReportDetail from "./views/ReportDetail.vue";
+import ResultDetail from "./views/ResultDetail.vue";
+import TaskEditor from "./views/TaskEditor.vue";
 
 export const router = createRouter({
   history: createWebHistory(),
@@ -18,6 +13,31 @@ export const router = createRouter({
       path: "/",
       name: "projects",
       component: ProjectList,
+    },
+    {
+      path: "/projects/:projectId",
+      name: "project-detail",
+      component: ProjectDetail,
+    },
+    {
+      path: "/projects/:projectId/tasks/new",
+      name: "task-editor",
+      component: TaskEditor,
+    },
+    {
+      path: "/projects/:projectId/executions",
+      name: "execution-list",
+      component: ExecutionList,
+    },
+    {
+      path: "/results/:resultId",
+      name: "result-detail",
+      component: ResultDetail,
+    },
+    {
+      path: "/reports/:reportId",
+      name: "report-detail",
+      component: ReportDetail,
     },
   ],
 });
