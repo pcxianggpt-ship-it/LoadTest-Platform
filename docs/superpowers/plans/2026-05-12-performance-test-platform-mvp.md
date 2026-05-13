@@ -947,7 +947,7 @@ git commit -m "feat: add frontend MVP workflow"
 - 新建：`backend/scripts/start.sh`
 - 新建：`backend/scripts/loadtest-platform.service`
 
-- [ ] **步骤 1：编写部署文档**
+- [x] **步骤 1：编写部署文档**
 
 覆盖：
 
@@ -964,7 +964,7 @@ git commit -m "feat: add frontend MVP workflow"
 备份 SQLite db 文件
 ```
 
-- [ ] **步骤 2：添加 systemd 服务模板**
+- [x] **步骤 2：添加 systemd 服务模板**
 
 创建 `backend/scripts/loadtest-platform.service`：
 
@@ -983,7 +983,7 @@ Restart=always
 WantedBy=multi-user.target
 ```
 
-- [ ] **步骤 3：提交**
+- [x] **步骤 3：提交**
 
 ```bash
 git add docs/deployment backend/scripts
@@ -992,7 +992,7 @@ git commit -m "docs: add single-node deployment guide"
 
 ## 最终验证
 
-- [ ] **运行后端测试**
+- [x] **运行后端测试**
 
 ```bash
 cd backend
@@ -1001,7 +1001,7 @@ mvn test
 
 预期：所有后端测试通过。
 
-- [ ] **运行后端打包**
+- [x] **运行后端打包**
 
 ```bash
 cd backend
@@ -1010,7 +1010,7 @@ mvn package
 
 预期：生成可运行 jar。
 
-- [ ] **运行前端构建**
+- [x] **运行前端构建**
 
 ```bash
 cd frontend

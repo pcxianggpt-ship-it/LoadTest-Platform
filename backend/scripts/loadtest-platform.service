@@ -1,0 +1,18 @@
+[Unit]
+Description=LoadTest Platform Backend
+After=network.target
+
+[Service]
+Type=simple
+User=loadtest
+Group=loadtest
+WorkingDirectory=/opt/loadtest-platform/backend
+Environment=APP_HOME=/opt/loadtest-platform
+Environment=SPRING_DATASOURCE_URL=jdbc:sqlite:/opt/loadtest-platform/data/loadtest-platform.db
+Environment=SERVER_PORT=8080
+ExecStart=/opt/loadtest-platform/backend/start.sh
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
