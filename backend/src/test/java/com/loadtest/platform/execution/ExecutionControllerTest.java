@@ -2,15 +2,27 @@ package com.loadtest.platform.execution;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.when;
+
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.loadtest.platform.ssh.SshCommandResult;
+import com.loadtest.platform.ssh.SshCommandRunner;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -30,6 +42,18 @@ class ExecutionControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private ExecutionService executionService;
+
+    @Autowired
+    private TestExecutionMapper testExecutionMapper;
+
+    @Autowired
+    private TestExecutionStepMapper testExecutionStepMapper;
+
+    @MockBean
+    private SshCommandRunner sshCommandRunner;
 
     @Test
     void createsManualExecutionAndListsIt() throws Exception {
@@ -58,15 +82,18 @@ class ExecutionControllerTest {
                 }
                 """;
 
-        mockMvc.perform(post("/api/tasks/{taskId}/executions/scheduled", taskId)
+        Long executionId = extractId(mockMvc.perform(post("/api/tasks/{taskId}/executions/scheduled", taskId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.triggerType").value("scheduled"))
                 .andExpect(jsonPath("$.data.status").value("scheduled"))
-                .andExpect(jsonPath("$.data.scheduledAt").value("2026-05-12T20:00:00+08:00"));
+                .andExpect(jsonPath("$.data.scheduledAt").value("2026-05-12T20:00:00+08:00"))
+                .andReturn()
+                .getResponse()
+                .getContentAsString());
 
-        mockMvc.perform(post("/api/executions/1/cancel"))
+        mockMvc.perform(post("/api/executions/{executionId}/cancel", executionId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("cancelled"));
     }
@@ -76,6 +103,60 @@ class ExecutionControllerTest {
         mockMvc.perform(post("/api/tasks/999/executions/manual"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.success").value(false));
+    }
+
+    @Test
+    void runsOnePendingExecutionAndMarksSuccess() throws Exception {
+        Long projectId = createProject();
+        createJMeterServer(projectId);
+        Long taskId = createTask(projectId, true);
+        Long executionId = createManualExecution(taskId);
+        when(sshCommandRunner.runWithPassword(anyString(), anyInt(), anyString(), anyString(), anyString(), any()))
+                .thenReturn(SshCommandResult.builder()
+                        .exitCode(0)
+                        .stdout("jmeter done")
+                        .stderr("")
+                        .build());
+
+        executionService.runOnePendingExecution();
+
+        TestExecution execution = testExecutionMapper.selectById(executionId);
+        assertThat(execution.getStatus()).isEqualTo("success");
+        assertThat(execution.getStartedAt()).isNotBlank();
+        assertThat(execution.getEndedAt()).isNotBlank();
+        assertThat(execution.getDurationSeconds()).isNotNull();
+        List<TestExecutionStep> steps = testExecutionStepMapper.selectList(new LambdaQueryWrapper<TestExecutionStep>()
+                .eq(TestExecutionStep::getExecutionId, executionId));
+        assertThat(steps).hasSize(1);
+        assertThat(steps.get(0).getStatus()).isEqualTo("success");
+        assertThat(steps.get(0).getCommand()).contains("order_query.jmx");
+        assertThat(steps.get(0).getJtlPath()).contains("execution_" + executionId + "_step_1.jtl");
+        assertThat(steps.get(0).getSshLog()).contains("jmeter done");
+    }
+
+    @Test
+    void marksExecutionFailedWhenJMeterCommandFails() throws Exception {
+        Long projectId = createProject();
+        createJMeterServer(projectId);
+        Long taskId = createTask(projectId);
+        Long executionId = createManualExecution(taskId);
+        when(sshCommandRunner.runWithPassword(anyString(), anyInt(), anyString(), anyString(), anyString(), any()))
+                .thenReturn(SshCommandResult.builder()
+                        .exitCode(1)
+                        .stdout("")
+                        .stderr("jmeter failed")
+                        .build());
+
+        executionService.runOnePendingExecution();
+
+        TestExecution execution = testExecutionMapper.selectById(executionId);
+        assertThat(execution.getStatus()).isEqualTo("failed");
+        assertThat(execution.getErrorMessage()).contains("exit code 1");
+        List<TestExecutionStep> steps = testExecutionStepMapper.selectList(new LambdaQueryWrapper<TestExecutionStep>()
+                .eq(TestExecutionStep::getExecutionId, executionId));
+        assertThat(steps).hasSize(1);
+        assertThat(steps.get(0).getStatus()).isEqualTo("failed");
+        assertThat(steps.get(0).getErrorMessage()).contains("exit code 1");
     }
 
     private Long createProject() throws Exception {
@@ -95,6 +176,10 @@ class ExecutionControllerTest {
     }
 
     private Long createTask(Long projectId) throws Exception {
+        return createTask(projectId, false);
+    }
+
+    private Long createTask(Long projectId, boolean saveJtl) throws Exception {
         String body = """
                 {
                   "name": "订单查询压测",
@@ -103,10 +188,11 @@ class ExecutionControllerTest {
                     "jmxFile": "order_query.jmx",
                     "threads": 100,
                     "durationSeconds": 600,
-                    "rampUpSeconds": 60
+                    "rampUpSeconds": 60,
+                    "saveJtl": %s
                   }
                 }
-                """;
+                """.formatted(saveJtl);
         return extractId(mockMvc.perform(post("/api/projects/{projectId}/tasks", projectId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
@@ -114,6 +200,35 @@ class ExecutionControllerTest {
                 .andReturn()
                 .getResponse()
                 .getContentAsString());
+    }
+
+    private Long createManualExecution(Long taskId) throws Exception {
+        return extractId(mockMvc.perform(post("/api/tasks/{taskId}/executions/manual", taskId))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString());
+    }
+
+    private void createJMeterServer(Long projectId) throws Exception {
+        String body = """
+                {
+                  "name": "jmeter-linux",
+                  "host": "10.0.0.10",
+                  "sshPort": 22,
+                  "sshUsername": "root",
+                  "sshAuthType": "password",
+                  "sshPasswordEncrypted": "secret",
+                  "jmeterHome": "/opt/apache-jmeter",
+                  "scriptDir": "/opt/jmeter/scripts",
+                  "resultDir": "/opt/jmeter/results",
+                  "logDir": "/opt/jmeter/logs"
+                }
+                """;
+        mockMvc.perform(put("/api/projects/{projectId}/jmeter-server", projectId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isOk());
     }
 
     private Long extractId(String response) {

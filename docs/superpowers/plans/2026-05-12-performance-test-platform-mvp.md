@@ -136,7 +136,7 @@ docs/
 - 新建：`backend/src/main/java/com/loadtest/platform/common/GlobalExceptionHandler.java`
 - 新建：`backend/src/main/java/com/loadtest/platform/common/NotFoundException.java`
 
-- [ ] **步骤 1：创建 Maven 依赖**
+- [x] **步骤 1：创建 Maven 依赖**
 
 创建 `backend/pom.xml`，核心依赖包括：
 
@@ -155,11 +155,11 @@ lombok
 
 JDK 版本使用 17。
 
-- [ ] **步骤 2：创建应用入口**
+- [x] **步骤 2：创建应用入口**
 
 创建 `LoadTestPlatformApplication.java`，启用 Spring Boot，并提供标准 `main` 方法。
 
-- [ ] **步骤 3：创建配置文件**
+- [x] **步骤 3：创建配置文件**
 
 `application.yml` 配置：
 
@@ -180,7 +180,7 @@ mybatis-plus:
     map-underscore-to-camel-case: true
 ```
 
-- [ ] **步骤 4：创建统一异常处理**
+- [x] **步骤 4：创建统一异常处理**
 
 实现：
 
@@ -198,7 +198,7 @@ GlobalExceptionHandler
 500 返回内部错误
 ```
 
-- [ ] **步骤 5：验证后端启动**
+- [x] **步骤 5：验证后端启动**
 
 ```bash
 cd backend
@@ -208,7 +208,7 @@ mvn spring-boot:run
 
 预期：应用启动在 `http://localhost:8080`。
 
-- [ ] **步骤 6：提交**
+- [x] **步骤 6：提交**
 
 ```bash
 git add backend
@@ -221,7 +221,7 @@ git commit -m "chore: scaffold Spring Boot backend"
 - 新建：`backend/src/main/resources/db/migration/V1__init_schema.sql`
 - 新建：各模块实体类和 Mapper 接口
 
-- [ ] **步骤 1：创建初始化 SQL**
+- [x] **步骤 1：创建初始化 SQL**
 
 创建 `V1__init_schema.sql`，包含以下表：
 
@@ -249,7 +249,7 @@ INTEGER
 
 时间字段使用 `TEXT` 保存 ISO-8601 字符串。
 
-- [ ] **步骤 2：启用 SQLite 约束和 WAL**
+- [x] **步骤 2：启用 SQLite 约束和 WAL**
 
 应用启动后需要执行：
 
@@ -261,7 +261,7 @@ PRAGMA busy_timeout=5000;
 
 可通过 `SQLiteConfig` 在 datasource 初始化后执行。
 
-- [ ] **步骤 3：创建实体和 Mapper**
+- [x] **步骤 3：创建实体和 Mapper**
 
 按表创建实体类和 Mapper，实体使用 Lombok：
 
@@ -271,7 +271,7 @@ PRAGMA busy_timeout=5000;
 @TableId(type = IdType.AUTO)
 ```
 
-- [ ] **步骤 4：验证迁移**
+- [x] **步骤 4：验证迁移**
 
 ```bash
 cd backend
@@ -280,7 +280,7 @@ mvn spring-boot:run
 
 预期：生成 `data/loadtest-platform.db`，并创建所有表。
 
-- [ ] **步骤 5：提交**
+- [x] **步骤 5：提交**
 
 ```bash
 git add backend/src/main/resources/db backend/src/main/java/com/loadtest/platform
@@ -298,7 +298,7 @@ git commit -m "feat: add SQLite schema migration"
 - 新建：`ProjectResponse.java`
 - 测试：`ProjectControllerTest.java`
 
-- [ ] **步骤 1：编写接口测试**
+- [x] **步骤 1：编写接口测试**
 
 覆盖：
 
@@ -310,7 +310,7 @@ git commit -m "feat: add SQLite schema migration"
 环境名称不能为空
 ```
 
-- [ ] **步骤 2：实现请求和响应对象**
+- [x] **步骤 2：实现请求和响应对象**
 
 字段：
 
@@ -323,7 +323,7 @@ createdAt
 updatedAt
 ```
 
-- [ ] **步骤 3：实现 Service**
+- [x] **步骤 3：实现 Service**
 
 实现：
 
@@ -333,7 +333,7 @@ listProjects
 getProject
 ```
 
-- [ ] **步骤 4：实现 Controller**
+- [x] **步骤 4：实现 Controller**
 
 接口：
 
@@ -343,7 +343,7 @@ GET /api/projects
 GET /api/projects/{projectId}
 ```
 
-- [ ] **步骤 5：运行测试并提交**
+- [x] **步骤 5：运行测试并提交**
 
 ```bash
 cd backend
@@ -358,7 +358,7 @@ git commit -m "feat: add project management API"
 - 新建：`projectconfig/*`
 - 测试：`ProjectConfigControllerTest.java`
 
-- [ ] **步骤 1：编写配置接口测试**
+- [x] **步骤 1：编写配置接口测试**
 
 覆盖：
 
@@ -372,7 +372,7 @@ git commit -m "feat: add project management API"
 保存测试环境服务器 instance 列表
 ```
 
-- [ ] **步骤 2：实现请求对象**
+- [x] **步骤 2：实现请求对象**
 
 定义：
 
@@ -390,7 +390,7 @@ datasource type 只能是 influxdb、prometheus 或 grafana
 baseUrl 必须以 http:// 或 https:// 开头
 ```
 
-- [ ] **步骤 3：实现 Service**
+- [x] **步骤 3：实现 Service**
 
 实现：
 
@@ -409,7 +409,7 @@ Prometheus instance 显式列表
 Grafana dashboard uid
 ```
 
-- [ ] **步骤 4：实现 Controller**
+- [x] **步骤 4：实现 Controller**
 
 接口：
 
@@ -420,7 +420,7 @@ PUT /api/projects/{projectId}/datasources/{datasourceType}
 GET /api/projects/{projectId}/datasources
 ```
 
-- [ ] **步骤 5：运行测试并提交**
+- [x] **步骤 5：运行测试并提交**
 
 ```bash
 cd backend
@@ -435,7 +435,7 @@ git commit -m "feat: add project runtime configuration API"
 - 新建：`task/*`
 - 测试：`TestTaskControllerTest.java`
 
-- [ ] **步骤 1：编写测试**
+- [x] **步骤 1：编写测试**
 
 覆盖：
 
@@ -447,7 +447,7 @@ git commit -m "feat: add project runtime configuration API"
 拒绝非 .jmx 文件
 ```
 
-- [ ] **步骤 2：实现 Service**
+- [x] **步骤 2：实现 Service**
 
 实现：
 
@@ -459,7 +459,7 @@ getTask
 
 创建任务时同步创建 `test_task_steps`。
 
-- [ ] **步骤 3：实现 Controller**
+- [x] **步骤 3：实现 Controller**
 
 接口：
 
@@ -469,7 +469,7 @@ GET /api/projects/{projectId}/tasks
 GET /api/tasks/{taskId}
 ```
 
-- [ ] **步骤 4：运行测试并提交**
+- [x] **步骤 4：运行测试并提交**
 
 ```bash
 cd backend
@@ -487,7 +487,7 @@ git commit -m "feat: add task template API"
 - 新建：`ssh/SshCommandResult.java`
 - 测试：`JMeterCommandBuilderTest.java`
 
-- [ ] **步骤 1：编写命令构建测试**
+- [x] **步骤 1：编写命令构建测试**
 
 覆盖：
 
@@ -499,7 +499,7 @@ saveJtl 为 true 时才包含 -l
 JMX 路径由 scriptDir 和 jmxFile 拼接
 ```
 
-- [ ] **步骤 2：实现命令构建器**
+- [x] **步骤 2：实现命令构建器**
 
 生成命令：
 
@@ -513,7 +513,7 @@ JMX 路径由 scriptDir 和 jmxFile 拼接
 -l {resultDir}/execution_{executionId}_step_{stepOrder}.jtl
 ```
 
-- [ ] **步骤 3：实现 SSH Runner**
+- [x] **步骤 3：实现 SSH Runner**
 
 使用 Apache MINA SSHD 执行远程命令，返回：
 
@@ -525,7 +525,7 @@ stderr
 
 连接超时 15 秒，命令超时为任务持续时间加 120 秒。
 
-- [ ] **步骤 4：运行测试并提交**
+- [x] **步骤 4：运行测试并提交**
 
 ```bash
 cd backend
@@ -538,9 +538,9 @@ git commit -m "feat: add JMeter command and SSH runner"
 
 **文件：**
 - 新建：`execution/*`
-- 测试：`ExecutionServiceTest.java`
+- 测试：`ExecutionControllerTest.java`
 
-- [ ] **步骤 1：编写执行状态测试**
+- [x] **步骤 1：编写执行状态测试**
 
 覆盖：
 
@@ -555,7 +555,7 @@ running 在 MVP 中不能取消
 同一项目同一时间只能有一个 running 执行
 ```
 
-- [ ] **步骤 2：实现执行服务**
+- [x] **步骤 2：实现执行服务**
 
 实现：
 
@@ -568,7 +568,7 @@ runPendingExecution(executionId)
 
 从 `pending` 改为 `running` 时必须在事务中完成，并检查同项目是否已有运行中的执行。
 
-- [ ] **步骤 3：实现调度器**
+- [x] **步骤 3：实现调度器**
 
 使用 `@Scheduled(fixedDelay = 10000)` 创建两个任务：
 
@@ -579,7 +579,7 @@ runPendingExecution(executionId)
 
 MVP 后端进程内一次只运行一个执行。
 
-- [ ] **步骤 4：实现 Controller**
+- [x] **步骤 4：实现 Controller**
 
 接口：
 
@@ -591,11 +591,11 @@ POST /api/executions/{executionId}/cancel
 GET /api/executions/{executionId}
 ```
 
-- [ ] **步骤 5：运行测试并提交**
+- [x] **步骤 5：运行测试并提交**
 
 ```bash
 cd backend
-mvn test -Dtest=ExecutionServiceTest
+mvn test -Dtest=ExecutionControllerTest
 git add backend/src
 git commit -m "feat: add execution scheduling"
 ```
@@ -705,7 +705,7 @@ git commit -m "feat: add result collection and analysis"
 - 新建：`report/*`
 - 测试：`ReportServiceTest.java`
 
-- [ ] **步骤 1：编写报告测试**
+- [x] **步骤 1：编写报告测试**
 
 覆盖：
 
@@ -717,7 +717,7 @@ failed 结果不能生成报告
 partial_success 结果可以生成报告，并提示资源指标不完整
 ```
 
-- [ ] **步骤 2：实现报告服务**
+- [x] **步骤 2：实现报告服务**
 
 生成 Markdown，包含：
 
@@ -742,7 +742,7 @@ contentHtml
 resultIdsJson = [resultId]
 ```
 
-- [ ] **步骤 3：实现 Controller**
+- [x] **步骤 3：实现 Controller**
 
 接口：
 
@@ -752,7 +752,7 @@ GET /api/projects/{projectId}/reports
 GET /api/reports/{reportId}
 ```
 
-- [ ] **步骤 4：运行测试并提交**
+- [x] **步骤 4：运行测试并提交**
 
 ```bash
 cd backend
@@ -776,7 +776,7 @@ git commit -m "feat: add text report generation"
 - 新建：`frontend/src/api/results.ts`
 - 新建：`frontend/src/api/reports.ts`
 
-- [ ] **步骤 1：创建 Vite + Vue 3 工程**
+- [x] **步骤 1：创建 Vite + Vue 3 工程**
 
 使用：
 
@@ -788,7 +788,7 @@ Element Plus
 Axios
 ```
 
-- [ ] **步骤 2：实现 HTTP 客户端**
+- [x] **步骤 2：实现 HTTP 客户端**
 
 `frontend/src/api/http.ts`：
 
@@ -801,7 +801,7 @@ export const http = axios.create({
 });
 ```
 
-- [ ] **步骤 3：实现 API 模块**
+- [x] **步骤 3：实现 API 模块**
 
 导出函数：
 
@@ -823,7 +823,7 @@ listReports
 getReport
 ```
 
-- [ ] **步骤 4：验证前端启动**
+- [x] **步骤 4：验证前端启动**
 
 ```bash
 cd frontend
@@ -833,7 +833,7 @@ npm run dev
 
 预期：Vite 开发服务器启动，能看到基础页面。
 
-- [ ] **步骤 5：提交**
+- [x] **步骤 5：提交**
 
 ```bash
 git add frontend
@@ -854,7 +854,7 @@ git commit -m "chore: scaffold Vue frontend"
 - 修改：`frontend/src/router.ts`
 - 修改：`frontend/src/App.vue`
 
-- [ ] **步骤 1：实现项目列表页**
+- [x] **步骤 1：实现项目列表页**
 
 支持：
 
@@ -864,7 +864,7 @@ git commit -m "chore: scaffold Vue frontend"
 进入项目详情
 ```
 
-- [ ] **步骤 2：实现项目详情页**
+- [x] **步骤 2：实现项目详情页**
 
 展示：
 
@@ -878,7 +878,7 @@ JMeter 服务器配置
 报告列表
 ```
 
-- [ ] **步骤 3：实现任务编辑页**
+- [x] **步骤 3：实现任务编辑页**
 
 表单字段：
 
@@ -893,7 +893,7 @@ saveJtl
 jmeterArgsJson
 ```
 
-- [ ] **步骤 4：实现执行列表页**
+- [x] **步骤 4：实现执行列表页**
 
 操作：
 
@@ -904,7 +904,7 @@ jmeterArgsJson
 从 success 执行生成结果
 ```
 
-- [ ] **步骤 5：实现结果详情页**
+- [x] **步骤 5：实现结果详情页**
 
 展示：
 
@@ -915,11 +915,11 @@ jmeterArgsJson
 生成报告按钮
 ```
 
-- [ ] **步骤 6：实现报告详情页**
+- [x] **步骤 6：实现报告详情页**
 
 渲染后端返回的 `contentHtml`。
 
-- [ ] **步骤 7：手工验证 UI 流程**
+- [x] **步骤 7：手工验证 UI 流程**
 
 运行后端和前端，验证：
 
@@ -933,7 +933,7 @@ jmeterArgsJson
 打开报告
 ```
 
-- [ ] **步骤 8：提交**
+- [x] **步骤 8：提交**
 
 ```bash
 git add frontend
