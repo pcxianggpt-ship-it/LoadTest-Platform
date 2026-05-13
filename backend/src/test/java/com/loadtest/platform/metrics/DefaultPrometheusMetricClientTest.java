@@ -1,0 +1,121 @@
+package com.loadtest.platform.metrics;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import com.loadtest.platform.projectconfig.ProjectDatasource;
+import com.sun.net.httpserver.HttpExchange;
+import com.sun.net.httpserver.HttpServer;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.math.BigDecimal;
+import java.net.InetSocketAddress;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+
+class DefaultPrometheusMetricClientTest {
+
+    private HttpServer server;
+    private String baseUrl;
+    private final List<String> queries = new ArrayList<>();
+
+    @BeforeEach
+    void startServer() throws IOException {
+        server = HttpServer.create(new InetSocketAddress(0), 0);
+        baseUrl = "http://127.0.0.1:" + server.getAddress().getPort();
+        server.createContext("/api/v1/query", this::handleQuery);
+        server.start();
+    }
+
+    @AfterEach
+    void stopServer() {
+        server.stop(0);
+    }
+
+    @Test
+    void queriesPrometheusSummaryForEachInstanceAndMapsResourceMetrics() {
+        ProjectDatasource datasource = new ProjectDatasource();
+        datasource.setBaseUrl(baseUrl);
+        DefaultPrometheusMetricClient client = new DefaultPrometheusMetricClient();
+
+        List<MetricSample> metrics = client.queryServerResourceSummary(
+                datasource,
+                List.of("10.0.0.11:9100"),
+                "2026-05-13T10:00:00+08:00",
+                "2026-05-13T10:10:00+08:00"
+        );
+
+        assertThat(queries).hasSize(7);
+        assertThat(queries).anySatisfy(query -> assertThat(query).contains("node_cpu_seconds_total").contains("10.0.0.11:9100"));
+        assertThat(metrics).hasSize(7);
+        assertThat(metric(metrics, "cpu", "CPU usage").getValue()).isEqualByComparingTo(BigDecimal.valueOf(82.5));
+        assertThat(metric(metrics, "memory", "Memory usage").getUnit()).isEqualTo("%");
+        assertThat(metric(metrics, "network", "Network receive").getUnit()).isEqualTo("B/s");
+        assertThat(metric(metrics, "load", "System load").getTargetName()).isEqualTo("10.0.0.11:9100");
+    }
+
+    private void handleQuery(HttpExchange exchange) throws IOException {
+        Map<String, String> params = TestHttp.queryParams(exchange.getRequestURI().getRawQuery());
+        String query = URLDecoder.decode(params.get("query"), StandardCharsets.UTF_8);
+        queries.add(query);
+        BigDecimal value = valueForQuery(query);
+        String body = """
+                {
+                  "status": "success",
+                  "data": {
+                    "resultType": "vector",
+                    "result": [
+                      {
+                        "metric": {},
+                        "value": [1778656800, "%s"]
+                      }
+                    ]
+                  }
+                }
+                """.formatted(value.toPlainString());
+        respond(exchange, body);
+    }
+
+    private BigDecimal valueForQuery(String query) {
+        if (query.contains("node_cpu_seconds_total")) {
+            return BigDecimal.valueOf(82.5);
+        }
+        if (query.contains("MemAvailable_bytes")) {
+            return BigDecimal.valueOf(71.2);
+        }
+        if (query.contains("node_filesystem")) {
+            return BigDecimal.valueOf(63.4);
+        }
+        if (query.contains("iowait")) {
+            return BigDecimal.valueOf(12.7);
+        }
+        if (query.contains("receive_bytes")) {
+            return BigDecimal.valueOf(2048);
+        }
+        if (query.contains("transmit_bytes")) {
+            return BigDecimal.valueOf(4096);
+        }
+        return BigDecimal.valueOf(2.5);
+    }
+
+    private MetricSample metric(List<MetricSample> metrics, String category, String name) {
+        return metrics.stream()
+                .filter(metric -> category.equals(metric.getMetricCategory()) && name.equals(metric.getMetricName()))
+                .findFirst()
+                .orElseThrow();
+    }
+
+    private void respond(HttpExchange exchange, String body) throws IOException {
+        byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
+        exchange.getResponseHeaders().add("Content-Type", "application/json");
+        exchange.sendResponseHeaders(200, bytes.length);
+        try (OutputStream output = exchange.getResponseBody()) {
+            output.write(bytes);
+        }
+    }
+}

@@ -605,9 +605,9 @@ git commit -m "feat: add execution scheduling"
 **文件：**
 - 新建：`result/*`
 - 新建：`metrics/*`
-- 测试：`ResultServiceTest.java`
+- 测试：`ResultControllerTest.java`、`DefaultInfluxMetricClientTest.java`、`DefaultPrometheusMetricClientTest.java`
 
-- [ ] **步骤 1：编写结果服务测试**
+- [x] **步骤 1：编写结果服务测试**
 
 覆盖：
 
@@ -620,7 +620,7 @@ ART P95 阈值能产生 warning 或 critical
 CPU max 阈值能产生 warning 或 critical
 ```
 
-- [ ] **步骤 2：实现指标客户端**
+- [x] **步骤 2：实现指标客户端**
 
 `InfluxMetricClient` 提供：
 
@@ -646,7 +646,7 @@ queryServerResourceSummary(datasource, instances, startTime, endTime)
 
 返回 CPU、内存、磁盘、IO wait、网络入、网络出、系统负载摘要。
 
-- [ ] **步骤 3：实现分析服务**
+- [x] **步骤 3：实现分析服务**
 
 阈值：
 
@@ -667,7 +667,7 @@ summary
 suggestions
 ```
 
-- [ ] **步骤 4：实现结果服务**
+- [x] **步骤 4：实现结果服务**
 
 实现 `generateResultFromExecution(executionId, name)`：
 
@@ -680,7 +680,7 @@ suggestions
 返回结果详情
 ```
 
-- [ ] **步骤 5：实现 Controller**
+- [x] **步骤 5：实现 Controller**
 
 接口：
 
@@ -690,11 +690,11 @@ GET /api/projects/{projectId}/results
 GET /api/results/{resultId}
 ```
 
-- [ ] **步骤 6：运行测试并提交**
+- [x] **步骤 6：运行测试并提交**
 
 ```bash
 cd backend
-mvn test -Dtest=ResultServiceTest
+mvn test -Dtest=ResultControllerTest,DefaultInfluxMetricClientTest,DefaultPrometheusMetricClientTest
 git add backend/src
 git commit -m "feat: add result collection and analysis"
 ```
