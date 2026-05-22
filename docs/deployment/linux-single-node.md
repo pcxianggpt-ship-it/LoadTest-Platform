@@ -88,6 +88,8 @@ npm install
 npm run build
 ```
 
+前端默认使用同源 API，也就是浏览器请求 `/api/...`，由 nginx 反向代理到后端。因此单机部署时不要把 `VITE_API_BASE_URL` 设置为 `http://服务器IP:8080` 或 `/api`，否则会引入跨域或 `/api/api/...` 的重复路径问题。
+
 复制构建产物：
 
 ```bash
@@ -95,12 +97,14 @@ sudo rsync -av --delete dist/ /opt/loadtest-platform/frontend/
 sudo chown -R loadtest:loadtest /opt/loadtest-platform/frontend
 ```
 
-如果前端需要访问非本机后端地址，构建前设置：
+如果确实不使用 nginx 反向代理，而是让浏览器直接访问后端地址，构建前才需要设置完整后端地址：
 
 ```bash
 export VITE_API_BASE_URL=http://your-server:8080
 npm run build
 ```
+
+这种方式需要后端额外配置 CORS。MVP 推荐使用 nginx 反向代理方式。
 
 ## 5. systemd 启动后端
 
