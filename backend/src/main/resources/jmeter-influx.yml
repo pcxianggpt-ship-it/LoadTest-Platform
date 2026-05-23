@@ -1,0 +1,6 @@
+loadtest:
+  metrics:
+    influx:
+      jmeter:
+        measurement: jmeter
+        send-interval-seconds: 5

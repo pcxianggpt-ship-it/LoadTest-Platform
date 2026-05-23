@@ -23,14 +23,20 @@ public class DefaultInfluxMetricClient implements InfluxMetricClient {
 
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
+    private final JMeterInfluxProperties properties;
 
     public DefaultInfluxMetricClient() {
-        this(new RestTemplate(), new ObjectMapper());
+        this(new RestTemplate(), new ObjectMapper(), new JMeterInfluxProperties());
     }
 
-    DefaultInfluxMetricClient(RestTemplate restTemplate, ObjectMapper objectMapper) {
+    public DefaultInfluxMetricClient(JMeterInfluxProperties properties) {
+        this(new RestTemplate(), new ObjectMapper(), properties);
+    }
+
+    DefaultInfluxMetricClient(RestTemplate restTemplate, ObjectMapper objectMapper, JMeterInfluxProperties properties) {
         this.restTemplate = restTemplate;
         this.objectMapper = objectMapper;
+        this.properties = properties;
     }
 
     @Override
@@ -41,7 +47,6 @@ public class DefaultInfluxMetricClient implements InfluxMetricClient {
     ) {
         String measurement = measurement(datasource);
         int sendIntervalSeconds = sendIntervalSeconds(datasource);
-        String applicationFilter = applicationFilter(datasource);
         String influxStartTime = influxTime(startTime);
         String influxEndTime = influxTime(endTime);
         String query = """
@@ -58,14 +63,12 @@ public class DefaultInfluxMetricClient implements InfluxMetricClient {
                 WHERE time >= '%s' AND time <= '%s'
                   AND transaction = 'all'
                   AND statut = 'all'
-                %s
                 """.formatted(
                 sendIntervalSeconds,
                 sendIntervalSeconds,
                 measurement,
                 influxStartTime,
-                influxEndTime,
-                applicationFilter
+                influxEndTime
         );
         URI uri = UriComponentsBuilder.fromHttpUrl(datasource.getBaseUrl())
                 .path("/query")
@@ -75,13 +78,12 @@ public class DefaultInfluxMetricClient implements InfluxMetricClient {
                 .toUri();
 
         log.info(
-                "Querying InfluxDB JMeter summary: datasourceId={}, baseUrl={}, database={}, measurement={}, sendIntervalSeconds={}, applicationFilter={}, startTime={}, endTime={}, influxStartTime={}, influxEndTime={}",
+                "Querying InfluxDB JMeter summary: datasourceId={}, baseUrl={}, database={}, measurement={}, sendIntervalSeconds={}, startTime={}, endTime={}, influxStartTime={}, influxEndTime={}",
                 datasource.getId(),
                 datasource.getBaseUrl(),
                 datasource.getDatabaseName(),
                 measurement,
                 sendIntervalSeconds,
-                applicationFilter.isBlank() ? "<none>" : applicationFilter.trim(),
                 startTime,
                 endTime,
                 influxStartTime,
@@ -128,44 +130,37 @@ public class DefaultInfluxMetricClient implements InfluxMetricClient {
 
     private String measurement(ProjectDatasource datasource) {
         if (datasource.getExtraConfigJson() == null || datasource.getExtraConfigJson().isBlank()) {
-            return "jmeter";
+            return defaultMeasurement();
         }
         try {
             JsonNode root = objectMapper.readTree(datasource.getExtraConfigJson());
             String measurement = root.path("measurement").asText();
-            return measurement == null || measurement.isBlank() ? "jmeter" : measurement;
+            return measurement == null || measurement.isBlank() ? defaultMeasurement() : measurement;
         } catch (Exception exception) {
-            return "jmeter";
+            return defaultMeasurement();
         }
     }
 
     private int sendIntervalSeconds(ProjectDatasource datasource) {
         if (datasource.getExtraConfigJson() == null || datasource.getExtraConfigJson().isBlank()) {
-            return 5;
+            return defaultSendIntervalSeconds();
         }
         try {
             JsonNode root = objectMapper.readTree(datasource.getExtraConfigJson());
-            int seconds = root.path("sendIntervalSeconds").asInt(5);
-            return seconds <= 0 ? 5 : seconds;
+            int seconds = root.path("sendIntervalSeconds").asInt(defaultSendIntervalSeconds());
+            return seconds <= 0 ? defaultSendIntervalSeconds() : seconds;
         } catch (Exception exception) {
-            return 5;
+            return defaultSendIntervalSeconds();
         }
     }
 
-    private String applicationFilter(ProjectDatasource datasource) {
-        if (datasource.getExtraConfigJson() == null || datasource.getExtraConfigJson().isBlank()) {
-            return "";
-        }
-        try {
-            JsonNode root = objectMapper.readTree(datasource.getExtraConfigJson());
-            String application = root.path("application").asText();
-            if (application == null || application.isBlank()) {
-                return "";
-            }
-            return "  AND application = '" + application.replace("'", "\\'") + "'";
-        } catch (Exception exception) {
-            return "";
-        }
+    private String defaultMeasurement() {
+        String measurement = properties.getMeasurement();
+        return measurement == null || measurement.isBlank() ? "jmeter" : measurement;
+    }
+
+    private int defaultSendIntervalSeconds() {
+        return properties.getSendIntervalSeconds() <= 0 ? 5 : properties.getSendIntervalSeconds();
     }
 
     private String influxTime(String time) {

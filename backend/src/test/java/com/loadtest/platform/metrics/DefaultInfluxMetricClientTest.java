@@ -40,7 +40,7 @@ class DefaultInfluxMetricClientTest {
     @Test
     void queriesJMeterBackendListenerFieldsAndMapsJMeterMetrics() {
         ProjectDatasource datasource = datasource();
-        DefaultInfluxMetricClient client = new DefaultInfluxMetricClient();
+        DefaultInfluxMetricClient client = new DefaultInfluxMetricClient(config("jmeter", 5));
 
         List<MetricSample> metrics = client.queryJMeterSummary(
                 datasource,
@@ -70,12 +70,31 @@ class DefaultInfluxMetricClientTest {
     }
 
     @Test
-    void filtersApplicationOnlyWhenConfigured() {
+    void usesConfigFileValuesWhenDatasourceDoesNotOverrideThem() {
+        ProjectDatasource datasource = datasource();
+        datasource.setExtraConfigJson(null);
+        DefaultInfluxMetricClient client = new DefaultInfluxMetricClient(config("jmeter_configured", 10));
+
+        client.queryJMeterSummary(
+                datasource,
+                "2026-05-13T10:00:00+08:00",
+                "2026-05-13T10:10:00+08:00"
+        );
+
+        assertThat(decodedQuery())
+                .contains("jmeter_configured")
+                .contains("mean(count) / 10 AS avg_tps")
+                .contains("max(count) / 10 AS max_tps")
+                .doesNotContain("application");
+    }
+
+    @Test
+    void ignoresApplicationEvenWhenDatasourceExtraConfigHasLegacyValue() {
         ProjectDatasource datasource = datasource();
         datasource.setExtraConfigJson("""
                 {"measurement":"jmeter_summary","sendIntervalSeconds":10,"application":"testplan"}
                 """);
-        DefaultInfluxMetricClient client = new DefaultInfluxMetricClient();
+        DefaultInfluxMetricClient client = new DefaultInfluxMetricClient(config("jmeter", 5));
 
         client.queryJMeterSummary(
                 datasource,
@@ -86,7 +105,7 @@ class DefaultInfluxMetricClientTest {
         assertThat(decodedQuery())
                 .contains("mean(count) / 10 AS avg_tps")
                 .contains("max(count) / 10 AS max_tps")
-                .contains("application = 'testplan'");
+                .doesNotContain("application");
     }
 
     private void handleQuery(HttpExchange exchange) throws IOException {
@@ -139,6 +158,13 @@ class DefaultInfluxMetricClientTest {
         datasource.setDatabaseName("jmeter");
         datasource.setExtraConfigJson("{\"measurement\":\"jmeter_summary\"}");
         return datasource;
+    }
+
+    private JMeterInfluxProperties config(String measurement, int sendIntervalSeconds) {
+        JMeterInfluxProperties properties = new JMeterInfluxProperties();
+        properties.setMeasurement(measurement);
+        properties.setSendIntervalSeconds(sendIntervalSeconds);
+        return properties;
     }
 
     private String decodedQuery() {
