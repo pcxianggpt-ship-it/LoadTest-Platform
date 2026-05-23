@@ -9,6 +9,8 @@ import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
@@ -16,6 +18,8 @@ import org.springframework.web.util.UriUtils;
 
 @Component
 public class DefaultInfluxMetricClient implements InfluxMetricClient {
+
+    private static final Logger log = LoggerFactory.getLogger(DefaultInfluxMetricClient.class);
 
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
@@ -36,9 +40,13 @@ public class DefaultInfluxMetricClient implements InfluxMetricClient {
             String endTime
     ) {
         String measurement = measurement(datasource);
+        int sendIntervalSeconds = sendIntervalSeconds(datasource);
+        String applicationFilter = applicationFilter(datasource);
+        String influxStartTime = influxTime(startTime);
+        String influxEndTime = influxTime(endTime);
         String query = """
-                SELECT mean(hit) AS avg_tps,
-                       max(hit) AS max_tps,
+                SELECT mean(count) / %d AS avg_tps,
+                       max(count) / %d AS max_tps,
                        mean(avg) AS avg_art,
                        mean("pct90.0") AS p90_art,
                        mean("pct95.0") AS p95_art,
@@ -50,7 +58,15 @@ public class DefaultInfluxMetricClient implements InfluxMetricClient {
                 WHERE time >= '%s' AND time <= '%s'
                   AND transaction = 'all'
                   AND statut = 'all'
-                """.formatted(measurement, influxTime(startTime), influxTime(endTime));
+                %s
+                """.formatted(
+                sendIntervalSeconds,
+                sendIntervalSeconds,
+                measurement,
+                influxStartTime,
+                influxEndTime,
+                applicationFilter
+        );
         URI uri = UriComponentsBuilder.fromHttpUrl(datasource.getBaseUrl())
                 .path("/query")
                 .queryParam("db", UriUtils.encodeQueryParam(datasource.getDatabaseName(), java.nio.charset.StandardCharsets.UTF_8))
@@ -58,14 +74,44 @@ public class DefaultInfluxMetricClient implements InfluxMetricClient {
                 .build(true)
                 .toUri();
 
+        log.info(
+                "Querying InfluxDB JMeter summary: datasourceId={}, baseUrl={}, database={}, measurement={}, sendIntervalSeconds={}, applicationFilter={}, startTime={}, endTime={}, influxStartTime={}, influxEndTime={}",
+                datasource.getId(),
+                datasource.getBaseUrl(),
+                datasource.getDatabaseName(),
+                measurement,
+                sendIntervalSeconds,
+                applicationFilter.isBlank() ? "<none>" : applicationFilter.trim(),
+                startTime,
+                endTime,
+                influxStartTime,
+                influxEndTime
+        );
+        log.info("InfluxDB query: {}", query.replaceAll("\\s+", " ").trim());
+        log.debug("InfluxDB query uri: {}", uri);
+
         JsonNode response = restTemplate.getForObject(uri, JsonNode.class);
+        log.debug("InfluxDB raw response: {}", response);
         JsonNode series = firstSeries(response);
         Map<String, Integer> columns = columns(series.get("columns"));
         JsonNode values = series.path("values");
         if (!values.isArray() || values.isEmpty()) {
+            log.warn(
+                    "InfluxDB returned empty JMeter metrics: measurement={}, columns={}, response={}",
+                    measurement,
+                    series.get("columns"),
+                    response
+            );
             throw new IllegalStateException("InfluxDB returned no JMeter metrics");
         }
         JsonNode row = values.get(0);
+        log.info(
+                "InfluxDB JMeter summary returned: measurement={}, rowCount={}, columns={}, firstRow={}",
+                measurement,
+                values.size(),
+                series.get("columns"),
+                row
+        );
 
         List<MetricSample> metrics = new ArrayList<>();
         metrics.add(sample("TPS", "avg", value(row, columns, "avg_tps"), "req/s"));
@@ -90,6 +136,35 @@ public class DefaultInfluxMetricClient implements InfluxMetricClient {
             return measurement == null || measurement.isBlank() ? "jmeter" : measurement;
         } catch (Exception exception) {
             return "jmeter";
+        }
+    }
+
+    private int sendIntervalSeconds(ProjectDatasource datasource) {
+        if (datasource.getExtraConfigJson() == null || datasource.getExtraConfigJson().isBlank()) {
+            return 5;
+        }
+        try {
+            JsonNode root = objectMapper.readTree(datasource.getExtraConfigJson());
+            int seconds = root.path("sendIntervalSeconds").asInt(5);
+            return seconds <= 0 ? 5 : seconds;
+        } catch (Exception exception) {
+            return 5;
+        }
+    }
+
+    private String applicationFilter(ProjectDatasource datasource) {
+        if (datasource.getExtraConfigJson() == null || datasource.getExtraConfigJson().isBlank()) {
+            return "";
+        }
+        try {
+            JsonNode root = objectMapper.readTree(datasource.getExtraConfigJson());
+            String application = root.path("application").asText();
+            if (application == null || application.isBlank()) {
+                return "";
+            }
+            return "  AND application = '" + application.replace("'", "\\'") + "'";
+        } catch (Exception exception) {
+            return "";
         }
     }
 

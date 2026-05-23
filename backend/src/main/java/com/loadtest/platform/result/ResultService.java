@@ -16,12 +16,16 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
 public class ResultService {
+
+    private static final Logger log = LoggerFactory.getLogger(ResultService.class);
 
     private final TestExecutionMapper testExecutionMapper;
     private final TestResultMapper testResultMapper;
@@ -52,12 +56,26 @@ public class ResultService {
         List<MetricSample> metrics = new ArrayList<>();
         boolean resourceMetricsIncomplete = false;
         try {
+            log.info(
+                    "Generating result from execution: executionId={}, projectId={}, startedAt={}, endedAt={}",
+                    execution.getId(),
+                    execution.getProjectId(),
+                    execution.getStartedAt(),
+                    execution.getEndedAt()
+            );
             metrics.addAll(influxMetricClient.queryJMeterSummary(
                     datasource(execution.getProjectId(), "influxdb"),
                     execution.getStartedAt(),
                     execution.getEndedAt()
             ));
         } catch (Exception exception) {
+            log.warn(
+                    "Failed to collect JMeter metrics: executionId={}, projectId={}, error={}",
+                    execution.getId(),
+                    execution.getProjectId(),
+                    exception.getMessage(),
+                    exception
+            );
             result.setStatus("failed");
             result.setSummaryJson(jsonString(new ResultSummary(0, exception.getMessage())));
             result.setAnalysisJson(jsonString(new AnalysisSummary(
@@ -141,14 +159,46 @@ public class ResultService {
     }
 
     private ProjectDatasource datasource(Long projectId, String type) {
+        log.info("Looking up datasource: projectId={}, type={}", projectId, type);
         LambdaQueryWrapper<ProjectDatasource> wrapper = new LambdaQueryWrapper<ProjectDatasource>()
                 .eq(ProjectDatasource::getProjectId, projectId)
                 .eq(ProjectDatasource::getType, type)
                 .last("limit 1");
         ProjectDatasource datasource = projectDatasourceMapper.selectOne(wrapper);
         if (datasource == null) {
+            List<ProjectDatasource> projectDatasources = projectDatasourceMapper.selectList(
+                    new LambdaQueryWrapper<ProjectDatasource>()
+                            .eq(ProjectDatasource::getProjectId, projectId)
+                            .orderByAsc(ProjectDatasource::getId)
+            );
+            log.warn(
+                    "Datasource not found: projectId={}, type={}, availableDatasources={}",
+                    projectId,
+                    type,
+                    projectDatasources.stream()
+                            .map(item -> "id=%s,type=%s,name=%s,baseUrl=%s,database=%s,status=%s".formatted(
+                                    item.getId(),
+                                    item.getType(),
+                                    item.getName(),
+                                    item.getBaseUrl(),
+                                    item.getDatabaseName(),
+                                    item.getStatus()
+                            ))
+                            .toList()
+            );
             throw new NotFoundException(type + " datasource not found");
         }
+        log.info(
+                "Datasource found: projectId={}, type={}, datasourceId={}, name={}, baseUrl={}, database={}, status={}, extraConfigJson={}",
+                projectId,
+                type,
+                datasource.getId(),
+                datasource.getName(),
+                datasource.getBaseUrl(),
+                datasource.getDatabaseName(),
+                datasource.getStatus(),
+                datasource.getExtraConfigJson()
+        );
         return datasource;
     }
 

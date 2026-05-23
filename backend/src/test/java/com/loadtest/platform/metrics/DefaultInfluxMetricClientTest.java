@@ -52,20 +52,41 @@ class DefaultInfluxMetricClientTest {
         assertThat(decodedQuery()).contains("jmeter_summary")
                 .contains("2026-05-13T02:00:00Z")
                 .contains("2026-05-13T02:10:00Z")
-                .contains("mean(hit) AS avg_tps")
-                .contains("max(hit) AS max_tps")
+                .contains("mean(count) / 5 AS avg_tps")
+                .contains("max(count) / 5 AS max_tps")
                 .contains("mean(avg) AS avg_art")
                 .contains("mean(\"pct95.0\") AS p95_art")
                 .contains("sum(count) AS requests")
                 .contains("sum(countError) AS failed_requests")
                 .contains("transaction = 'all'")
                 .contains("statut = 'all'");
+        assertThat(decodedQuery()).doesNotContain("application");
         assertThat(metrics).hasSize(9);
         assertThat(metric(metrics, "TPS", "avg").getValue()).isEqualByComparingTo(BigDecimal.valueOf(120.5));
         assertThat(metric(metrics, "TPS", "max").getValue()).isEqualByComparingTo(BigDecimal.valueOf(160));
         assertThat(metric(metrics, "ART", "p95").getValue()).isEqualByComparingTo(BigDecimal.valueOf(980));
         assertThat(metric(metrics, "error_rate", "avg").getValue()).isEqualByComparingTo(BigDecimal.valueOf(0.25));
         assertThat(metric(metrics, "requests", "sum").getUnit()).isEqualTo("count");
+    }
+
+    @Test
+    void filtersApplicationOnlyWhenConfigured() {
+        ProjectDatasource datasource = datasource();
+        datasource.setExtraConfigJson("""
+                {"measurement":"jmeter_summary","sendIntervalSeconds":10,"application":"testplan"}
+                """);
+        DefaultInfluxMetricClient client = new DefaultInfluxMetricClient();
+
+        client.queryJMeterSummary(
+                datasource,
+                "2026-05-13T10:00:00+08:00",
+                "2026-05-13T10:10:00+08:00"
+        );
+
+        assertThat(decodedQuery())
+                .contains("mean(count) / 10 AS avg_tps")
+                .contains("max(count) / 10 AS max_tps")
+                .contains("application = 'testplan'");
     }
 
     private void handleQuery(HttpExchange exchange) throws IOException {
