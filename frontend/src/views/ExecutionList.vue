@@ -21,8 +21,10 @@ const executions = ref<TestExecution[]>([]);
 const tasks = ref<TestTask[]>([]);
 const selectedTaskId = ref<number>();
 const resultDialogVisible = ref(false);
+const scheduleDialogVisible = ref(false);
 const activeExecution = ref<TestExecution>();
 const resultForm = reactive({ name: "" });
+const scheduledAt = ref<Date>();
 
 async function loadData() {
   loading.value = true;
@@ -47,14 +49,27 @@ async function runNow() {
   await loadData();
 }
 
-async function scheduleRun() {
+function openScheduleDialog() {
   if (!selectedTaskId.value) {
     ElMessage.warning("请先选择任务");
     return;
   }
-  const scheduledAt = new Date(Date.now() + 60_000).toISOString();
-  await createScheduledExecution(selectedTaskId.value, { scheduledAt });
+  scheduledAt.value = new Date(Date.now() + 60_000);
+  scheduleDialogVisible.value = true;
+}
+
+async function submitScheduledRun() {
+  if (!selectedTaskId.value || !scheduledAt.value) {
+    ElMessage.warning("请选择执行时间");
+    return;
+  }
+  if (scheduledAt.value.getTime() <= Date.now()) {
+    ElMessage.warning("定时执行时间必须晚于当前时间");
+    return;
+  }
+  await createScheduledExecution(selectedTaskId.value, { scheduledAt: scheduledAt.value.toISOString() });
   ElMessage.success("已创建定时执行");
+  scheduleDialogVisible.value = false;
   await loadData();
 }
 
@@ -102,7 +117,7 @@ onMounted(loadData);
         <el-option v-for="task in tasks" :key="task.id" :label="task.name" :value="task.id" />
       </el-select>
       <el-button type="primary" @click="runNow">立即执行</el-button>
-      <el-button @click="scheduleRun">一分钟后执行</el-button>
+      <el-button @click="openScheduleDialog">定时执行</el-button>
     </div>
 
     <el-table :data="executions" border stripe>
@@ -129,6 +144,24 @@ onMounted(loadData);
       <template #footer>
         <el-button @click="resultDialogVisible = false">取消</el-button>
         <el-button type="primary" @click="submitResult">生成</el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog v-model="scheduleDialogVisible" title="定时执行" width="480px">
+      <el-form label-width="90px">
+        <el-form-item label="执行时间" required>
+          <el-date-picker
+            v-model="scheduledAt"
+            type="datetime"
+            format="YYYY-MM-DD HH:mm:ss"
+            placeholder="选择年月日时分秒"
+            style="width: 100%"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="scheduleDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="submitScheduledRun">创建</el-button>
       </template>
     </el-dialog>
   </section>

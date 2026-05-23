@@ -10,12 +10,12 @@ public class ExecutionScheduler {
 
     private final ExecutionService executionService;
 
-    @Scheduled(fixedDelay = 10000)
+    @Scheduled(fixedDelay = 1000)
     public void promoteScheduledExecutions() {
         executionService.promoteDueScheduledExecutions();
     }
 
-    @Scheduled(fixedDelay = 10000)
+    @Scheduled(fixedDelay = 1000)
     public void runOnePendingExecution() {
         executionService.runOnePendingExecution();
     }

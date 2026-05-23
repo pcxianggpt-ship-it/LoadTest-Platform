@@ -37,17 +37,19 @@ public class DefaultInfluxMetricClient implements InfluxMetricClient {
     ) {
         String measurement = measurement(datasource);
         String query = """
-                SELECT mean(tps) AS avg_tps,
-                       max(tps) AS max_tps,
-                       mean(art) AS avg_art,
-                       percentile(art, 90) AS p90_art,
-                       percentile(art, 95) AS p95_art,
-                       percentile(art, 99) AS p99_art,
-                       mean(error_rate) AS error_rate,
-                       sum(requests) AS requests,
-                       sum(failed_requests) AS failed_requests
+                SELECT mean(hit) AS avg_tps,
+                       max(hit) AS max_tps,
+                       mean(avg) AS avg_art,
+                       mean("pct90.0") AS p90_art,
+                       mean("pct95.0") AS p95_art,
+                       mean("pct99.0") AS p99_art,
+                       sum(countError) / sum(count) * 100 AS error_rate,
+                       sum(count) AS requests,
+                       sum(countError) AS failed_requests
                 FROM "%s"
                 WHERE time >= '%s' AND time <= '%s'
+                  AND transaction = 'all'
+                  AND statut = 'all'
                 """.formatted(measurement, influxTime(startTime), influxTime(endTime));
         URI uri = UriComponentsBuilder.fromHttpUrl(datasource.getBaseUrl())
                 .path("/query")

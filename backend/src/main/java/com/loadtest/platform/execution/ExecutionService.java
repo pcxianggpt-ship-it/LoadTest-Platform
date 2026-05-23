@@ -76,12 +76,23 @@ public class ExecutionService {
     public void promoteDueScheduledExecutions() {
         String now = OffsetDateTime.now().toString();
         LambdaQueryWrapper<TestExecution> wrapper = new LambdaQueryWrapper<TestExecution>()
-                .eq(TestExecution::getStatus, "scheduled")
-                .le(TestExecution::getScheduledAt, now);
+                .eq(TestExecution::getStatus, "scheduled");
         for (TestExecution execution : testExecutionMapper.selectList(wrapper)) {
+            if (!isDue(execution.getScheduledAt(), now)) {
+                continue;
+            }
             execution.setStatus("pending");
             execution.setUpdatedAt(now);
             testExecutionMapper.updateById(execution);
+        }
+    }
+
+    static boolean isDue(String scheduledAt, String now) {
+        try {
+            return !OffsetDateTime.parse(scheduledAt).toInstant()
+                    .isAfter(OffsetDateTime.parse(now).toInstant());
+        } catch (Exception exception) {
+            return scheduledAt != null && now != null && scheduledAt.compareTo(now) <= 0;
         }
     }
 

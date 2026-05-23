@@ -38,7 +38,7 @@ class DefaultInfluxMetricClientTest {
     }
 
     @Test
-    void queriesInfluxSummaryAndMapsJMeterMetrics() {
+    void queriesJMeterBackendListenerFieldsAndMapsJMeterMetrics() {
         ProjectDatasource datasource = datasource();
         DefaultInfluxMetricClient client = new DefaultInfluxMetricClient();
 
@@ -51,7 +51,15 @@ class DefaultInfluxMetricClientTest {
         assertThat(queryString.get()).contains("db=jmeter");
         assertThat(decodedQuery()).contains("jmeter_summary")
                 .contains("2026-05-13T02:00:00Z")
-                .contains("2026-05-13T02:10:00Z");
+                .contains("2026-05-13T02:10:00Z")
+                .contains("mean(hit) AS avg_tps")
+                .contains("max(hit) AS max_tps")
+                .contains("mean(avg) AS avg_art")
+                .contains("mean(\"pct95.0\") AS p95_art")
+                .contains("sum(count) AS requests")
+                .contains("sum(countError) AS failed_requests")
+                .contains("transaction = 'all'")
+                .contains("statut = 'all'");
         assertThat(metrics).hasSize(9);
         assertThat(metric(metrics, "TPS", "avg").getValue()).isEqualByComparingTo(BigDecimal.valueOf(120.5));
         assertThat(metric(metrics, "TPS", "max").getValue()).isEqualByComparingTo(BigDecimal.valueOf(160));

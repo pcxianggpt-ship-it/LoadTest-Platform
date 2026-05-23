@@ -8,6 +8,7 @@ User=loadtest
 Group=loadtest
 WorkingDirectory=/opt/loadtest-platform/backend
 Environment=APP_HOME=/opt/loadtest-platform
+Environment=JAVA_HOME=/opt/jdk-17.0.17
 Environment=SPRING_DATASOURCE_URL=jdbc:sqlite:/opt/loadtest-platform/data/loadtest-platform.db
 Environment=SERVER_PORT=8080
 ExecStart=/opt/loadtest-platform/backend/start.sh
