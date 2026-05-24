@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { getReport, type TestReport } from "../api/reports";
+import { formatDisplayDateTime } from "../utils/dateTime";
 
 const route = useRoute();
 const router = useRouter();
@@ -26,9 +27,9 @@ onMounted(loadReport);
     <div class="page-toolbar">
       <div>
         <h2>{{ report?.title || "测试报告" }}</h2>
-        <p>{{ report?.createdAt || "" }}</p>
+        <p>{{ formatDisplayDateTime(report?.createdAt) }}</p>
       </div>
-      <el-button v-if="report" @click="router.push(`/projects/${report.projectId}`)">返回项目</el-button>
+      <el-button v-if="report" @click="router.push(`/reports?projectId=${report.projectId}`)">返回报告</el-button>
     </div>
 
     <article class="report-content" v-html="report?.contentHtml || ''"></article>

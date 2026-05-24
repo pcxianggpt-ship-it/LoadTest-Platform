@@ -3,7 +3,7 @@ import { ElMessage } from "element-plus";
 import { computed, onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { generateReport } from "../api/reports";
-import { getResult, type TestResult } from "../api/results";
+import { getResult, type ResultMetric, type TestResult } from "../api/results";
 import MetricTable from "../components/MetricTable.vue";
 import StatusTag from "../components/StatusTag.vue";
 
@@ -35,6 +35,24 @@ const summary = computed(() => {
   }
 });
 
+const riskItems = computed(() => {
+  const items = analysis.value.riskItems;
+  return Array.isArray(items) ? items.map(String) : [];
+});
+
+const collectionError = computed(() => {
+  const error = summary.value.errorMessage;
+  return typeof error === "string" && error.trim() ? error : "";
+});
+
+const jmeterMetrics = computed<ResultMetric[]>(() =>
+  (result.value?.metrics || []).filter((metric) => metric.source === "influxdb")
+);
+
+const prometheusMetrics = computed<ResultMetric[]>(() =>
+  (result.value?.metrics || []).filter((metric) => metric.source === "prometheus")
+);
+
 async function loadResult() {
   loading.value = true;
   try {
@@ -64,7 +82,7 @@ onMounted(loadResult);
         <p>执行编号：{{ result?.executionId || "-" }}</p>
       </div>
       <div class="toolbar-actions">
-        <el-button v-if="result" @click="router.push(`/projects/${result.projectId}`)">返回项目</el-button>
+        <el-button v-if="result" @click="router.push(`/results?projectId=${result.projectId}`)">返回结果</el-button>
         <el-button v-if="result?.status !== 'failed'" type="primary" @click="createReport">生成报告</el-button>
       </div>
     </div>
@@ -83,8 +101,29 @@ onMounted(loadResult);
 
     <section class="settings-block">
       <h3>分析结论</h3>
+      <el-alert
+        v-if="collectionError"
+        class="result-alert"
+        type="warning"
+        :title="collectionError"
+        show-icon
+        :closable="false"
+      />
       <p>{{ analysis.summary || "暂无分析结论" }}</p>
       <p class="muted">{{ analysis.suggestions || "暂无后续建议" }}</p>
+      <div v-if="riskItems.length" class="risk-list">
+        <el-tag v-for="item in riskItems" :key="item" type="warning" effect="plain">{{ item }}</el-tag>
+      </div>
+    </section>
+
+    <section class="settings-block">
+      <h3>Prometheus 资源指标</h3>
+      <MetricTable :metrics="prometheusMetrics" />
+    </section>
+
+    <section class="settings-block">
+      <h3>JMeter 指标</h3>
+      <MetricTable :metrics="jmeterMetrics" />
     </section>
 
     <section class="settings-block">

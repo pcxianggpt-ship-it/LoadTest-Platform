@@ -138,6 +138,10 @@ body {
   width: 280px;
 }
 
+.project-select {
+  width: 260px;
+}
+
 .two-column {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
@@ -181,6 +185,17 @@ body {
 
 .metric-table {
   width: 100%;
+}
+
+.result-alert {
+  margin-bottom: 12px;
+}
+
+.risk-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
 }
 
 .muted {

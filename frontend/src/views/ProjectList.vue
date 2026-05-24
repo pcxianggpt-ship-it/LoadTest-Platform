@@ -4,6 +4,7 @@ import { onMounted, reactive, ref } from "vue";
 import { useRouter } from "vue-router";
 import { createProject, listProjects, type Project } from "../api/projects";
 import StatusTag from "../components/StatusTag.vue";
+import { formatDisplayDateTime } from "../utils/dateTime";
 
 const router = useRouter();
 const loading = ref(false);
@@ -63,10 +64,12 @@ onMounted(loadProjects);
           <StatusTag :status="row.status" />
         </template>
       </el-table-column>
-      <el-table-column prop="updatedAt" label="更新时间" min-width="220" />
+      <el-table-column label="更新时间" min-width="220">
+        <template #default="{ row }">{{ formatDisplayDateTime(row.updatedAt) }}</template>
+      </el-table-column>
       <el-table-column label="操作" width="130" fixed="right">
         <template #default="{ row }">
-          <el-button link type="primary" @click="router.push(`/projects/${row.id}`)">进入</el-button>
+          <el-button link type="primary" @click="router.push(`/projects/${row.id}`)">配置</el-button>
         </template>
       </el-table-column>
     </el-table>

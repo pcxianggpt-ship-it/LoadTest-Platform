@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ElMessage } from "element-plus";
-import { computed, onMounted, reactive, ref } from "vue";
+import { onMounted, reactive, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import {
   cancelExecution,
@@ -9,6 +9,7 @@ import {
   listExecutions,
   type TestExecution,
 } from "../api/executions";
+import { listProjects, type Project } from "../api/projects";
 import { generateResult } from "../api/results";
 import { listTasks, type TestTask } from "../api/tasks";
 import StatusTag from "../components/StatusTag.vue";
@@ -16,10 +17,11 @@ import { formatDisplayDateTime } from "../utils/dateTime";
 
 const route = useRoute();
 const router = useRouter();
-const projectId = computed(() => Number(route.params.projectId));
 const loading = ref(false);
+const projects = ref<Project[]>([]);
 const executions = ref<TestExecution[]>([]);
 const tasks = ref<TestTask[]>([]);
+const selectedProjectId = ref<number>();
 const selectedTaskId = ref<number>();
 const resultDialogVisible = ref(false);
 const scheduleDialogVisible = ref(false);
@@ -27,10 +29,25 @@ const activeExecution = ref<TestExecution>();
 const resultForm = reactive({ name: "" });
 const scheduledAt = ref<Date>();
 
+async function loadProjects() {
+  projects.value = await listProjects();
+  const queryProjectId = Number(route.query.projectId || route.params.projectId);
+  selectedProjectId.value = queryProjectId || projects.value[0]?.id;
+}
+
 async function loadData() {
+  if (!selectedProjectId.value) {
+    tasks.value = [];
+    executions.value = [];
+    selectedTaskId.value = undefined;
+    return;
+  }
   loading.value = true;
   try {
-    const [taskData, executionData] = await Promise.all([listTasks(projectId.value), listExecutions(projectId.value)]);
+    const [taskData, executionData] = await Promise.all([
+      listTasks(selectedProjectId.value),
+      listExecutions(selectedProjectId.value),
+    ]);
     tasks.value = taskData;
     executions.value = executionData;
     const routeTaskId = Number(route.query.taskId);
@@ -100,7 +117,12 @@ function canCancel(status: string) {
   return status === "scheduled" || status === "pending";
 }
 
-onMounted(loadData);
+watch(selectedProjectId, loadData);
+
+onMounted(async () => {
+  await loadProjects();
+  await loadData();
+});
 </script>
 
 <template>
@@ -110,7 +132,9 @@ onMounted(loadData);
         <h2>执行管理</h2>
         <p>创建立即执行或定时执行，并从成功执行生成测试结果。</p>
       </div>
-      <el-button @click="router.push(`/projects/${projectId}`)">返回项目</el-button>
+      <el-select v-model="selectedProjectId" placeholder="选择项目" class="project-select">
+        <el-option v-for="project in projects" :key="project.id" :label="project.name" :value="project.id" />
+      </el-select>
     </div>
 
     <div class="action-strip">

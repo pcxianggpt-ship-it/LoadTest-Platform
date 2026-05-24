@@ -6,7 +6,7 @@ import { createTask } from "../api/tasks";
 
 const route = useRoute();
 const router = useRouter();
-const projectId = computed(() => Number(route.params.projectId));
+const projectId = computed(() => Number(route.query.projectId || route.params.projectId));
 const form = reactive({
   name: "",
   description: "",
@@ -21,6 +21,10 @@ const form = reactive({
 });
 
 async function submitTask() {
+  if (!projectId.value) {
+    ElMessage.warning("请先从任务管理选择项目");
+    return;
+  }
   if (!form.name.trim() || !form.jmxFile.trim()) {
     ElMessage.warning("请填写任务名称和 JMX 文件");
     return;
@@ -40,7 +44,7 @@ async function submitTask() {
     },
   });
   ElMessage.success("任务已创建");
-  router.push(`/projects/${projectId.value}`);
+  router.push(`/tasks?projectId=${projectId.value}`);
 }
 </script>
 
@@ -51,7 +55,7 @@ async function submitTask() {
         <h2>创建测试任务</h2>
         <p>当前 MVP 创建一个 JMX 步骤，后端数据模型已支持多步骤。</p>
       </div>
-      <el-button @click="router.push(`/projects/${projectId}`)">返回项目</el-button>
+      <el-button @click="router.push(projectId ? `/tasks?projectId=${projectId}` : '/tasks')">返回任务</el-button>
     </div>
 
     <el-form label-width="130px">
@@ -66,7 +70,7 @@ async function submitTask() {
       <el-form-item label="JMeter 参数"><el-input v-model="form.jmeterArgsJson" type="textarea" :rows="4" /></el-form-item>
       <el-form-item>
         <el-button type="primary" @click="submitTask">保存任务</el-button>
-        <el-button @click="router.push(`/projects/${projectId}`)">取消</el-button>
+        <el-button @click="router.push(projectId ? `/tasks?projectId=${projectId}` : '/tasks')">取消</el-button>
       </el-form-item>
     </el-form>
   </section>
