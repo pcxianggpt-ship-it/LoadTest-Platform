@@ -1,6 +1,7 @@
 package com.loadtest.platform.execution;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.loadtest.platform.cleanup.DeletionService;
 import com.loadtest.platform.common.NotFoundException;
 import com.loadtest.platform.jmeter.JMeterCommand;
 import com.loadtest.platform.jmeter.JMeterCommandBuilder;
@@ -30,6 +31,7 @@ public class ExecutionService {
     private final JMeterServerMapper jMeterServerMapper;
     private final JMeterCommandBuilder jMeterCommandBuilder;
     private final SshCommandRunner sshCommandRunner;
+    private final DeletionService deletionService;
 
     @Transactional
     public ExecutionResponse createManualExecution(Long taskId) {
@@ -58,6 +60,12 @@ public class ExecutionService {
 
     public ExecutionResponse getExecution(Long executionId) {
         return ExecutionResponse.from(getExecutionOrThrow(executionId));
+    }
+
+    @Transactional
+    public void deleteExecution(Long executionId) {
+        getExecutionOrThrow(executionId);
+        deletionService.deleteExecution(executionId);
     }
 
     @Transactional

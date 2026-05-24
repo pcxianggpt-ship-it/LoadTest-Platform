@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { ElMessage } from "element-plus";
+import { ElMessage, ElMessageBox } from "element-plus";
 import { onMounted, reactive, ref } from "vue";
 import { useRouter } from "vue-router";
-import { createProject, listProjects, type Project } from "../api/projects";
+import { createProject, deleteProject, listProjects, type Project } from "../api/projects";
 import StatusTag from "../components/StatusTag.vue";
 import { formatDisplayDateTime } from "../utils/dateTime";
 
@@ -42,6 +42,21 @@ async function submitProject() {
   router.push(`/projects/${project.id}`);
 }
 
+async function removeProject(project: Project) {
+  try {
+    await ElMessageBox.confirm(
+      `删除项目「${project.name}」会同时删除它的任务、执行、结果和报告，确认继续？`,
+      "删除项目",
+      { type: "warning", confirmButtonText: "删除", cancelButtonText: "取消" }
+    );
+  } catch {
+    return;
+  }
+  await deleteProject(project.id);
+  ElMessage.success("项目已删除");
+  await loadProjects();
+}
+
 onMounted(loadProjects);
 </script>
 
@@ -67,9 +82,10 @@ onMounted(loadProjects);
       <el-table-column label="更新时间" min-width="220">
         <template #default="{ row }">{{ formatDisplayDateTime(row.updatedAt) }}</template>
       </el-table-column>
-      <el-table-column label="操作" width="130" fixed="right">
+      <el-table-column label="操作" width="170" fixed="right">
         <template #default="{ row }">
           <el-button link type="primary" @click="router.push(`/projects/${row.id}`)">配置</el-button>
+          <el-button link type="danger" @click="removeProject(row)">删除</el-button>
         </template>
       </el-table-column>
     </el-table>

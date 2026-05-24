@@ -30,3 +30,7 @@ export async function getProject(projectId: number) {
   const response = await http.get<ApiResponse<Project>>(`/api/projects/${projectId}`);
   return response.data.data;
 }
+
+export async function deleteProject(projectId: number) {
+  await http.delete<ApiResponse<null>>(`/api/projects/${projectId}`);
+}

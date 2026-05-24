@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { ElMessage } from "element-plus";
+import { ElMessage, ElMessageBox } from "element-plus";
 import { onMounted, reactive, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import {
   cancelExecution,
   createManualExecution,
   createScheduledExecution,
+  deleteExecution,
   listExecutions,
   type TestExecution,
 } from "../api/executions";
@@ -97,6 +98,21 @@ async function cancel(row: TestExecution) {
   await loadData();
 }
 
+async function removeExecution(row: TestExecution) {
+  try {
+    await ElMessageBox.confirm(
+      `删除执行「${row.executionName}」会同时删除关联结果和报告，确认继续？`,
+      "删除执行",
+      { type: "warning", confirmButtonText: "删除", cancelButtonText: "取消" }
+    );
+  } catch {
+    return;
+  }
+  await deleteExecution(row.id);
+  ElMessage.success("执行已删除");
+  await loadData();
+}
+
 function openResultDialog(row: TestExecution) {
   activeExecution.value = row;
   resultForm.name = `${row.executionName}结果`;
@@ -160,10 +176,11 @@ onMounted(async () => {
       <el-table-column label="结束时间" min-width="200">
         <template #default="{ row }">{{ formatDisplayDateTime(row.endedAt) }}</template>
       </el-table-column>
-      <el-table-column label="操作" width="210" fixed="right">
+      <el-table-column label="操作" width="250" fixed="right">
         <template #default="{ row }">
           <el-button v-if="canCancel(row.status)" link type="danger" @click="cancel(row)">取消</el-button>
           <el-button v-if="row.status === 'success'" link type="primary" @click="openResultDialog(row)">生成结果</el-button>
+          <el-button link type="danger" @click="removeExecution(row)">删除</el-button>
         </template>
       </el-table-column>
     </el-table>

@@ -4,6 +4,7 @@ import com.loadtest.platform.common.ApiResponse;
 import jakarta.validation.Valid;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -33,5 +34,11 @@ public class ProjectController {
     @GetMapping("/{projectId}")
     public ApiResponse<ProjectResponse> getProject(@PathVariable Long projectId) {
         return ApiResponse.ok(projectService.getProject(projectId));
+    }
+
+    @DeleteMapping("/{projectId}")
+    public ApiResponse<Void> deleteProject(@PathVariable Long projectId) {
+        projectService.deleteProject(projectId);
+        return ApiResponse.ok(null);
     }
 }

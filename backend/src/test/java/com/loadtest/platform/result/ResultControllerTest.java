@@ -3,6 +3,7 @@ package com.loadtest.platform.result;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -137,6 +138,30 @@ class ResultControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.analysisJson").value(org.hamcrest.Matchers.containsString("critical")))
                 .andExpect(jsonPath("$.data.metrics[0].thresholdStatus").value("critical"));
+    }
+
+    @Test
+    void deletesResult() throws Exception {
+        Long projectId = createProjectWithDatasources();
+        Long executionId = createSuccessExecution(projectId);
+        when(influxMetricClient.queryJMeterSummary(any(), any(), any()))
+                .thenReturn(jmeterMetrics(BigDecimal.valueOf(800)));
+        when(prometheusMetricClient.queryServerResourceSummary(any(), any(), any(), any()))
+                .thenReturn(resourceMetrics(BigDecimal.valueOf(60)));
+        Long resultId = extractId(mockMvc.perform(post("/api/executions/{executionId}/results", executionId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"待删除结果\"}"))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString());
+
+        mockMvc.perform(delete("/api/results/{resultId}", resultId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+
+        mockMvc.perform(get("/api/results/{resultId}", resultId))
+                .andExpect(status().isNotFound());
     }
 
     private Long createProjectWithDatasources() throws Exception {

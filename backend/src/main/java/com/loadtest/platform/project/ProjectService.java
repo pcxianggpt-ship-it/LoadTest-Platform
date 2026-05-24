@@ -1,6 +1,7 @@
 package com.loadtest.platform.project;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.loadtest.platform.cleanup.DeletionService;
 import com.loadtest.platform.common.NotFoundException;
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -13,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class ProjectService {
 
     private final ProjectMapper projectMapper;
+    private final DeletionService deletionService;
 
     @Transactional
     public ProjectResponse createProject(ProjectCreateRequest request) {
@@ -42,5 +44,13 @@ public class ProjectService {
             throw new NotFoundException("project not found");
         }
         return ProjectResponse.from(project);
+    }
+
+    @Transactional
+    public void deleteProject(Long projectId) {
+        if (projectMapper.selectById(projectId) == null) {
+            throw new NotFoundException("project not found");
+        }
+        deletionService.deleteProject(projectId);
     }
 }

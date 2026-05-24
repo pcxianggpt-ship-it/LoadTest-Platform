@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { ElMessage } from "element-plus";
+import { ElMessage, ElMessageBox } from "element-plus";
 import { computed, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { listProjects, type Project } from "../api/projects";
 import { generateReport } from "../api/reports";
-import { listResults, type TestResult } from "../api/results";
+import { deleteResult, listResults, type TestResult } from "../api/results";
 import StatusTag from "../components/StatusTag.vue";
 import { formatDisplayDateTime } from "../utils/dateTime";
 
@@ -42,6 +42,21 @@ async function createReport(row: TestResult) {
   router.push(`/reports/${report.id}`);
 }
 
+async function removeResult(row: TestResult) {
+  try {
+    await ElMessageBox.confirm(
+      `删除结果「${row.name}」会同时删除关联指标和报告，确认继续？`,
+      "删除结果",
+      { type: "warning", confirmButtonText: "删除", cancelButtonText: "取消" }
+    );
+  } catch {
+    return;
+  }
+  await deleteResult(row.id);
+  ElMessage.success("结果已删除");
+  await loadResults();
+}
+
 watch(selectedProjectId, loadResults);
 
 onMounted(async () => {
@@ -76,10 +91,11 @@ onMounted(async () => {
       <el-table-column label="归档时间" min-width="200">
         <template #default="{ row }">{{ formatDisplayDateTime(row.createdAt) }}</template>
       </el-table-column>
-      <el-table-column label="操作" width="190" fixed="right">
+      <el-table-column label="操作" width="230" fixed="right">
         <template #default="{ row }">
           <el-button link type="primary" @click="router.push(`/results/${row.id}`)">分析详情</el-button>
           <el-button v-if="row.status !== 'failed'" link type="success" @click="createReport(row)">生成报告</el-button>
+          <el-button link type="danger" @click="removeResult(row)">删除</el-button>
         </template>
       </el-table-column>
     </el-table>

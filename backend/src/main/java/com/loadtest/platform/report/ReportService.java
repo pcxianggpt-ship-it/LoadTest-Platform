@@ -3,6 +3,7 @@ package com.loadtest.platform.report;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.loadtest.platform.cleanup.DeletionService;
 import com.loadtest.platform.common.NotFoundException;
 import com.loadtest.platform.execution.TestExecution;
 import com.loadtest.platform.execution.TestExecutionMapper;
@@ -33,6 +34,7 @@ public class ReportService {
     private final TestExecutionMapper testExecutionMapper;
     private final TestTaskMapper testTaskMapper;
     private final ObjectMapper objectMapper;
+    private final DeletionService deletionService;
 
     public ReportResponse generateReport(Long resultId) {
         TestResult result = testResultMapper.selectById(resultId);
@@ -77,6 +79,13 @@ public class ReportService {
             throw new NotFoundException("report not found");
         }
         return ReportResponse.from(report);
+    }
+
+    public void deleteReport(Long reportId) {
+        if (testReportMapper.selectById(reportId) == null) {
+            throw new NotFoundException("report not found");
+        }
+        deletionService.deleteReport(reportId);
     }
 
     private String buildMarkdown(TestResult result, List<TestResultMetric> metrics) {

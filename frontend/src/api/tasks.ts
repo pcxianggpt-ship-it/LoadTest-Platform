@@ -50,3 +50,7 @@ export async function createTask(projectId: number, payload: TaskPayload) {
   const response = await http.post<ApiResponse<TestTask>>(`/api/projects/${projectId}/tasks`, payload);
   return response.data.data;
 }
+
+export async function deleteTask(taskId: number) {
+  await http.delete<ApiResponse<null>>(`/api/tasks/${taskId}`);
+}

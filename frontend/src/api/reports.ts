@@ -28,3 +28,7 @@ export async function getReport(reportId: number) {
   const response = await http.get<ApiResponse<TestReport>>(`/api/reports/${reportId}`);
   return response.data.data;
 }
+
+export async function deleteReport(reportId: number) {
+  await http.delete<ApiResponse<null>>(`/api/reports/${reportId}`);
+}

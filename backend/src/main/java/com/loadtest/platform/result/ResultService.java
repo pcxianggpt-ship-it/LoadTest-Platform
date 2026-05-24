@@ -3,6 +3,7 @@ package com.loadtest.platform.result;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.loadtest.platform.cleanup.DeletionService;
 import com.loadtest.platform.common.NotFoundException;
 import com.loadtest.platform.execution.TestExecution;
 import com.loadtest.platform.execution.TestExecutionMapper;
@@ -35,6 +36,7 @@ public class ResultService {
     private final PrometheusMetricClient prometheusMetricClient;
     private final AnalysisService analysisService;
     private final ObjectMapper objectMapper;
+    private final DeletionService deletionService;
 
     @Transactional
     public ResultResponse generateResultFromExecution(Long executionId, String name) {
@@ -160,6 +162,14 @@ public class ResultService {
             throw new NotFoundException("result not found");
         }
         return ResultResponse.from(result, metrics(resultId));
+    }
+
+    @Transactional
+    public void deleteResult(Long resultId) {
+        if (testResultMapper.selectById(resultId) == null) {
+            throw new NotFoundException("result not found");
+        }
+        deletionService.deleteResult(resultId);
     }
 
     private TestResultMetric toEntity(Long resultId, MetricSample sample, String now) {

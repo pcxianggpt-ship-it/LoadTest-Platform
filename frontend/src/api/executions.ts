@@ -41,3 +41,7 @@ export async function listExecutions(projectId: number) {
   const response = await http.get<ApiResponse<TestExecution[]>>(`/api/projects/${projectId}/executions`);
   return response.data.data;
 }
+
+export async function deleteExecution(executionId: number) {
+  await http.delete<ApiResponse<null>>(`/api/executions/${executionId}`);
+}

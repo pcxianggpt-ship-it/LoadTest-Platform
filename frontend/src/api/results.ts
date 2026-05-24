@@ -50,3 +50,7 @@ export async function getResult(resultId: number) {
   const response = await http.get<ApiResponse<TestResult>>(`/api/results/${resultId}`);
   return response.data.data;
 }
+
+export async function deleteResult(resultId: number) {
+  await http.delete<ApiResponse<null>>(`/api/results/${resultId}`);
+}

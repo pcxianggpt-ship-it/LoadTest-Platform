@@ -1,6 +1,7 @@
 package com.loadtest.platform.report;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -115,6 +116,24 @@ class ReportControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.id").value(reportId))
                 .andExpect(jsonPath("$.data.contentMarkdown", containsString("## 4. 核心性能指标")));
+    }
+
+    @Test
+    void deletesReport() throws Exception {
+        Long resultId = createResult("success");
+        addMetric(resultId, "jmeter", "ART", "all", "p95", BigDecimal.valueOf(850), "ms", "normal");
+        Long reportId = extractId(mockMvc.perform(post("/api/results/{resultId}/reports", resultId))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString());
+
+        mockMvc.perform(delete("/api/reports/{reportId}", reportId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+
+        mockMvc.perform(get("/api/reports/{reportId}", reportId))
+                .andExpect(status().isNotFound());
     }
 
     private Long createResult(String status) {

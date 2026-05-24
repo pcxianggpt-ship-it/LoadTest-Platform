@@ -1,6 +1,7 @@
 package com.loadtest.platform.task;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.loadtest.platform.cleanup.DeletionService;
 import com.loadtest.platform.common.NotFoundException;
 import com.loadtest.platform.project.ProjectMapper;
 import java.time.OffsetDateTime;
@@ -16,6 +17,7 @@ public class TestTaskService {
     private final ProjectMapper projectMapper;
     private final TestTaskMapper testTaskMapper;
     private final TestTaskStepMapper testTaskStepMapper;
+    private final DeletionService deletionService;
 
     @Transactional
     public TestTaskResponse createTask(Long projectId, TestTaskRequest request) {
@@ -68,6 +70,14 @@ public class TestTaskService {
             throw new NotFoundException("task not found");
         }
         return TestTaskResponse.from(task, listSteps(taskId));
+    }
+
+    @Transactional
+    public void deleteTask(Long taskId) {
+        if (testTaskMapper.selectById(taskId) == null) {
+            throw new NotFoundException("task not found");
+        }
+        deletionService.deleteTask(taskId);
     }
 
     private List<TestTaskStep> listSteps(Long taskId) {

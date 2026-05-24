@@ -1,6 +1,7 @@
 package com.loadtest.platform.project;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -97,5 +98,37 @@ class ProjectControllerTest {
         mockMvc.perform(get("/api/projects/999"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.success").value(false));
+    }
+
+    @Test
+    void deletesProject() throws Exception {
+        Long projectId = createProject();
+
+        mockMvc.perform(delete("/api/projects/{projectId}", projectId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+
+        mockMvc.perform(get("/api/projects/{projectId}", projectId))
+                .andExpect(status().isNotFound());
+    }
+
+    private Long createProject() throws Exception {
+        String body = """
+                {
+                  "name": "订单系统压测",
+                  "environmentName": "test"
+                }
+                """;
+        String response = mockMvc.perform(post("/api/projects")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        String marker = "\"id\":";
+        int start = response.indexOf(marker) + marker.length();
+        int end = response.indexOf(",", start);
+        return Long.parseLong(response.substring(start, end));
     }
 }

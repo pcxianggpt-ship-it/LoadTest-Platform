@@ -1,6 +1,7 @@
 package com.loadtest.platform.execution;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -103,6 +104,19 @@ class ExecutionControllerTest {
         mockMvc.perform(post("/api/tasks/999/executions/manual"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.success").value(false));
+    }
+
+    @Test
+    void deletesExecution() throws Exception {
+        Long taskId = createTask(createProject());
+        Long executionId = createManualExecution(taskId);
+
+        mockMvc.perform(delete("/api/executions/{executionId}", executionId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+
+        mockMvc.perform(get("/api/executions/{executionId}", executionId))
+                .andExpect(status().isNotFound());
     }
 
     @Test

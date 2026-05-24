@@ -1,8 +1,9 @@
 <script setup lang="ts">
+import { ElMessage, ElMessageBox } from "element-plus";
 import { computed, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { listProjects, type Project } from "../api/projects";
-import { listReports, type TestReport } from "../api/reports";
+import { deleteReport, listReports, type TestReport } from "../api/reports";
 import StatusTag from "../components/StatusTag.vue";
 import { formatDisplayDateTime } from "../utils/dateTime";
 
@@ -32,6 +33,21 @@ async function loadReports() {
   } finally {
     loading.value = false;
   }
+}
+
+async function removeReport(row: TestReport) {
+  try {
+    await ElMessageBox.confirm(
+      `确认删除报告「${row.title}」？`,
+      "删除报告",
+      { type: "warning", confirmButtonText: "删除", cancelButtonText: "取消" }
+    );
+  } catch {
+    return;
+  }
+  await deleteReport(row.id);
+  ElMessage.success("报告已删除");
+  await loadReports();
 }
 
 watch(selectedProjectId, loadReports);
@@ -66,9 +82,10 @@ onMounted(async () => {
       <el-table-column label="生成时间" min-width="200">
         <template #default="{ row }">{{ formatDisplayDateTime(row.createdAt) }}</template>
       </el-table-column>
-      <el-table-column label="操作" width="120" fixed="right">
+      <el-table-column label="操作" width="150" fixed="right">
         <template #default="{ row }">
           <el-button link type="primary" @click="router.push(`/reports/${row.id}`)">打开</el-button>
+          <el-button link type="danger" @click="removeReport(row)">删除</el-button>
         </template>
       </el-table-column>
     </el-table>

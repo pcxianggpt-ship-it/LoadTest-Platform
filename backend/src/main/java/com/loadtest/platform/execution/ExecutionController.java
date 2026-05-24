@@ -4,6 +4,7 @@ import com.loadtest.platform.common.ApiResponse;
 import jakarta.validation.Valid;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -42,5 +43,11 @@ public class ExecutionController {
     @PostMapping("/api/executions/{executionId}/cancel")
     public ApiResponse<ExecutionResponse> cancelExecution(@PathVariable Long executionId) {
         return ApiResponse.ok(executionService.cancelExecution(executionId));
+    }
+
+    @DeleteMapping("/api/executions/{executionId}")
+    public ApiResponse<Void> deleteExecution(@PathVariable Long executionId) {
+        executionService.deleteExecution(executionId);
+        return ApiResponse.ok(null);
     }
 }

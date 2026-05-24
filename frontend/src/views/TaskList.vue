@@ -1,8 +1,9 @@
 <script setup lang="ts">
+import { ElMessage, ElMessageBox } from "element-plus";
 import { computed, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { listProjects, type Project } from "../api/projects";
-import { listTasks, type TestTask } from "../api/tasks";
+import { deleteTask, listTasks, type TestTask } from "../api/tasks";
 import StatusTag from "../components/StatusTag.vue";
 import { formatDisplayDateTime } from "../utils/dateTime";
 
@@ -43,6 +44,21 @@ function createTask() {
 
 function runTask(task: TestTask) {
   router.push(`/executions?projectId=${task.projectId}&taskId=${task.id}`);
+}
+
+async function removeTask(task: TestTask) {
+  try {
+    await ElMessageBox.confirm(
+      `删除任务「${task.name}」会同时删除关联执行、结果和报告，确认继续？`,
+      "删除任务",
+      { type: "warning", confirmButtonText: "删除", cancelButtonText: "取消" }
+    );
+  } catch {
+    return;
+  }
+  await deleteTask(task.id);
+  ElMessage.success("任务已删除");
+  await loadTasks();
 }
 
 watch(selectedProjectId, loadTasks);
@@ -88,6 +104,7 @@ onMounted(async () => {
       <el-table-column label="操作" width="150" fixed="right">
         <template #default="{ row }">
           <el-button link type="primary" @click="runTask(row)">执行</el-button>
+          <el-button link type="danger" @click="removeTask(row)">删除</el-button>
         </template>
       </el-table-column>
     </el-table>
