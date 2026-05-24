@@ -83,18 +83,23 @@ jdbc:sqlite:/opt/loadtest-platform/data/loadtest-platform.db
 在项目根目录执行：
 
 ```bash
-cd frontend
-npm install
-npm run build
+bash frontend/scripts/deploy-frontend.sh
 ```
 
 前端默认使用同源 API，也就是浏览器请求 `/api/...`，由 nginx 反向代理到后端。因此单机部署时不要把 `VITE_API_BASE_URL` 设置为 `http://服务器IP:8080` 或 `/api`，否则会引入跨域或 `/api/api/...` 的重复路径问题。
 
-复制构建产物：
+脚本会自动执行依赖安装、前端构建、构建产物检查、同步到 `/opt/loadtest-platform/frontend`，并重新加载 nginx。
+
+如果需要自定义部署目录或用户：
 
 ```bash
-sudo rsync -av --delete dist/ /opt/loadtest-platform/frontend/
-sudo chown -R loadtest:loadtest /opt/loadtest-platform/frontend
+APP_HOME=/opt/loadtest-platform APP_USER=loadtest APP_GROUP=loadtest bash frontend/scripts/deploy-frontend.sh
+```
+
+如果只想构建和同步，不重新加载 nginx：
+
+```bash
+RELOAD_NGINX=false bash frontend/scripts/deploy-frontend.sh
 ```
 
 如果确实不使用 nginx 反向代理，而是让浏览器直接访问后端地址，构建前才需要设置完整后端地址：
