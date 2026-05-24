@@ -31,6 +31,11 @@ public class ProjectConfigController {
         return ApiResponse.ok(projectConfigService.getJMeterServer(projectId));
     }
 
+    @GetMapping("/jmx-files")
+    public ApiResponse<List<String>> listJmxFiles(@PathVariable Long projectId) {
+        return ApiResponse.ok(projectConfigService.listJmxFiles(projectId));
+    }
+
     @PutMapping("/datasources/{datasourceType}")
     public ApiResponse<DatasourceResponse> upsertDatasource(
             @PathVariable Long projectId,

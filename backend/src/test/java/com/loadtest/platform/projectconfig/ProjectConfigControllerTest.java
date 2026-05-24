@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import java.nio.file.Files;
 import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -31,6 +32,9 @@ class ProjectConfigControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @TempDir
+    private Path tempDir;
 
     @Test
     void upsertsAndReadsJMeterServer() throws Exception {
@@ -142,6 +146,24 @@ class ProjectConfigControllerTest {
                 .andExpect(jsonPath("$.success").value(false));
     }
 
+    @Test
+    void listsJmxFilesFromConfiguredScriptDirectory() throws Exception {
+        Long projectId = createProject();
+        Path scriptDir = tempDir.resolve("scripts");
+        Files.createDirectories(scriptDir);
+        Files.writeString(scriptDir.resolve("checkout.jmx"), "<jmeterTestPlan />");
+        Files.writeString(scriptDir.resolve("order_query.jmx"), "<jmeterTestPlan />");
+        Files.writeString(scriptDir.resolve("readme.txt"), "ignore");
+        Files.createDirectories(scriptDir.resolve("nested.jmx"));
+        upsertJMeterServer(projectId, scriptDir);
+
+        mockMvc.perform(get("/api/projects/{projectId}/jmx-files", projectId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(2))
+                .andExpect(jsonPath("$.data[0]").value("checkout.jmx"))
+                .andExpect(jsonPath("$.data[1]").value("order_query.jmx"));
+    }
+
     private Long createProject() throws Exception {
         String body = """
                 {
@@ -160,5 +182,27 @@ class ProjectConfigControllerTest {
         int start = response.indexOf(marker) + marker.length();
         int end = response.indexOf(",", start);
         return Long.parseLong(response.substring(start, end));
+    }
+
+    private void upsertJMeterServer(Long projectId, Path scriptDir) throws Exception {
+        String escapedScriptDir = scriptDir.toAbsolutePath().toString().replace("\\", "\\\\");
+        String body = """
+                {
+                  "name": "jmeter-01",
+                  "host": "10.0.0.10",
+                  "sshPort": 22,
+                  "sshUsername": "jmeter",
+                  "sshAuthType": "password",
+                  "sshPasswordEncrypted": "encrypted-password",
+                  "jmeterHome": "/opt/apache-jmeter",
+                  "scriptDir": "%s",
+                  "resultDir": "/opt/jmeter/results",
+                  "logDir": "/opt/jmeter/logs"
+                }
+                """.formatted(escapedScriptDir);
+        mockMvc.perform(put("/api/projects/{projectId}/jmeter-server", projectId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isOk());
     }
 }

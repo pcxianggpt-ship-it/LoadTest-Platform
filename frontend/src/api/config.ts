@@ -60,6 +60,11 @@ export async function getJMeterServer(projectId: number) {
   return response.data.data;
 }
 
+export async function listJmxFiles(projectId: number) {
+  const response = await http.get<ApiResponse<string[]>>(`/api/projects/${projectId}/jmx-files`);
+  return response.data.data;
+}
+
 export async function upsertJMeterServer(projectId: number, payload: JMeterServerPayload) {
   const response = await http.put<ApiResponse<JMeterServer>>(`/api/projects/${projectId}/jmeter-server`, payload);
   return response.data.data;

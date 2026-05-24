@@ -3,9 +3,14 @@ package com.loadtest.platform.projectconfig;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.loadtest.platform.common.NotFoundException;
 import com.loadtest.platform.project.ProjectMapper;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.OffsetDateTime;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Stream;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -58,6 +63,28 @@ public class ProjectConfigService {
             throw new NotFoundException("jmeter server not found");
         }
         return JMeterServerResponse.from(server);
+    }
+
+    public List<String> listJmxFiles(Long projectId) {
+        ensureProjectExists(projectId);
+        JMeterServer server = findJMeterServer(projectId);
+        if (server == null) {
+            throw new NotFoundException("jmeter server not found");
+        }
+        Path scriptDir = Path.of(server.getScriptDir());
+        if (!Files.isDirectory(scriptDir)) {
+            return List.of();
+        }
+        try (Stream<Path> files = Files.list(scriptDir)) {
+            return files
+                    .filter(Files::isRegularFile)
+                    .map(path -> path.getFileName().toString())
+                    .filter(fileName -> fileName.toLowerCase().endsWith(".jmx"))
+                    .sorted(Comparator.naturalOrder())
+                    .toList();
+        } catch (IOException exception) {
+            throw new IllegalArgumentException("failed to read jmx script directory");
+        }
     }
 
     @Transactional

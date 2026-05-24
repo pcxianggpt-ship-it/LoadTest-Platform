@@ -1,12 +1,15 @@
 <script setup lang="ts">
 import { ElMessage } from "element-plus";
-import { computed, reactive } from "vue";
+import { computed, onMounted, reactive, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
+import { listJmxFiles } from "../api/config";
 import { createTask } from "../api/tasks";
 
 const route = useRoute();
 const router = useRouter();
 const projectId = computed(() => Number(route.query.projectId || route.params.projectId));
+const jmxFiles = ref<string[]>([]);
+const loadingJmxFiles = ref(false);
 const form = reactive({
   name: "",
   description: "",
@@ -20,9 +23,33 @@ const form = reactive({
   jmeterArgsJson: "",
 });
 
+async function loadJmxFiles() {
+  if (!projectId.value) {
+    jmxFiles.value = [];
+    return;
+  }
+  loadingJmxFiles.value = true;
+  try {
+    jmxFiles.value = await listJmxFiles(projectId.value);
+    if (!jmxFiles.value.includes(form.jmxFile)) {
+      form.jmxFile = "";
+    }
+  } catch {
+    jmxFiles.value = [];
+    form.jmxFile = "";
+    ElMessage.warning("请先在项目管理中配置 JMeter 脚本目录");
+  } finally {
+    loadingJmxFiles.value = false;
+  }
+}
+
 async function submitTask() {
   if (!projectId.value) {
     ElMessage.warning("请先从任务管理选择项目");
+    return;
+  }
+  if (jmxFiles.value.length === 0) {
+    ElMessage.warning("脚本目录下没有可选的 JMX 文件");
     return;
   }
   if (!form.name.trim() || !form.jmxFile.trim()) {
@@ -46,6 +73,9 @@ async function submitTask() {
   ElMessage.success("任务已创建");
   router.push(`/tasks?projectId=${projectId.value}`);
 }
+
+watch(projectId, loadJmxFiles);
+onMounted(loadJmxFiles);
 </script>
 
 <template>
@@ -62,14 +92,24 @@ async function submitTask() {
       <el-form-item label="任务名称" required><el-input v-model="form.name" /></el-form-item>
       <el-form-item label="描述"><el-input v-model="form.description" type="textarea" :rows="3" /></el-form-item>
       <el-form-item label="步骤名称"><el-input v-model="form.stepName" /></el-form-item>
-      <el-form-item label="JMX 文件" required><el-input v-model="form.jmxFile" placeholder="order_query.jmx" /></el-form-item>
+      <el-form-item label="JMX 文件" required>
+        <el-select
+          v-model="form.jmxFile"
+          :loading="loadingJmxFiles"
+          :disabled="loadingJmxFiles || jmxFiles.length === 0"
+          placeholder="请选择脚本目录中的 JMX 文件"
+          filterable
+        >
+          <el-option v-for="file in jmxFiles" :key="file" :label="file" :value="file" />
+        </el-select>
+      </el-form-item>
       <el-form-item label="线程数"><el-input-number v-model="form.threads" :min="1" /></el-form-item>
       <el-form-item label="持续时间"><el-input-number v-model="form.durationSeconds" :min="1" /> <span class="unit-label">秒</span></el-form-item>
       <el-form-item label="预热时间"><el-input-number v-model="form.rampUpSeconds" :min="0" /> <span class="unit-label">秒</span></el-form-item>
       <el-form-item label="保存 JTL"><el-switch v-model="form.saveJtl" /></el-form-item>
       <el-form-item label="JMeter 参数"><el-input v-model="form.jmeterArgsJson" type="textarea" :rows="4" /></el-form-item>
       <el-form-item>
-        <el-button type="primary" @click="submitTask">保存任务</el-button>
+        <el-button type="primary" :disabled="loadingJmxFiles || jmxFiles.length === 0" @click="submitTask">保存任务</el-button>
         <el-button @click="router.push(projectId ? `/tasks?projectId=${projectId}` : '/tasks')">取消</el-button>
       </el-form-item>
     </el-form>
