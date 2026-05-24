@@ -55,6 +55,7 @@ public class ResultService {
 
         List<MetricSample> metrics = new ArrayList<>();
         boolean resourceMetricsIncomplete = false;
+        String resourceMetricsError = null;
         try {
             log.info(
                     "Generating result from execution: executionId={}, projectId={}, startedAt={}, endedAt={}",
@@ -90,20 +91,47 @@ public class ResultService {
 
         try {
             ProjectDatasource prometheus = datasource(execution.getProjectId(), "prometheus");
+            List<String> instances = parseInstances(prometheus.getExtraConfigJson());
+            int metricCountBefore = metrics.size();
             metrics.addAll(prometheusMetricClient.queryServerResourceSummary(
                     prometheus,
-                    parseInstances(prometheus.getExtraConfigJson()),
+                    instances,
                     execution.getStartedAt(),
                     execution.getEndedAt()
             ));
-            result.setStatus("success");
+            int resourceMetricCount = metrics.size() - metricCountBefore;
+            int expectedResourceMetricCount = instances.size() * 7;
+            if (expectedResourceMetricCount > 0 && resourceMetricCount < expectedResourceMetricCount) {
+                resourceMetricsIncomplete = true;
+                resourceMetricsError = "Prometheus 指标采集不完整: expected="
+                        + expectedResourceMetricCount + ", actual=" + resourceMetricCount;
+                result.setStatus("partial_success");
+                log.warn(
+                        "Prometheus metrics incomplete: executionId={}, projectId={}, instances={}, expected={}, actual={}",
+                        execution.getId(),
+                        execution.getProjectId(),
+                        instances,
+                        expectedResourceMetricCount,
+                        resourceMetricCount
+                );
+            } else {
+                result.setStatus("success");
+            }
         } catch (Exception exception) {
             resourceMetricsIncomplete = true;
+            resourceMetricsError = "Prometheus 指标采集失败: " + exception.getMessage();
+            log.warn(
+                    "Failed to collect Prometheus metrics: executionId={}, projectId={}, error={}",
+                    execution.getId(),
+                    execution.getProjectId(),
+                    exception.getMessage(),
+                    exception
+            );
             result.setStatus("partial_success");
         }
 
-        AnalysisSummary analysis = analysisService.analyze(metrics, resourceMetricsIncomplete);
-        result.setSummaryJson(jsonString(new ResultSummary(metrics.size(), null)));
+        AnalysisSummary analysis = analysisService.analyze(metrics, resourceMetricsIncomplete, resourceMetricsError);
+        result.setSummaryJson(jsonString(new ResultSummary(metrics.size(), resourceMetricsError)));
         result.setAnalysisJson(jsonString(analysis));
         testResultMapper.insert(result);
 

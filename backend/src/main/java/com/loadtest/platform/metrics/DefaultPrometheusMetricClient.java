@@ -8,12 +8,16 @@ import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
 @Component
 public class DefaultPrometheusMetricClient implements PrometheusMetricClient {
+
+    private static final Logger log = LoggerFactory.getLogger(DefaultPrometheusMetricClient.class);
 
     private final RestTemplate restTemplate;
 
@@ -34,31 +38,76 @@ public class DefaultPrometheusMetricClient implements PrometheusMetricClient {
     ) {
         List<MetricSample> metrics = new ArrayList<>();
         String range = range(startTime, endTime);
+        String queryTime = queryTime(endTime);
         for (String instance : instances) {
-            metrics.add(sample("cpu", "CPU usage", instance, query(datasource, cpuQuery(instance, range)), "%"));
-            metrics.add(sample("memory", "Memory usage", instance, query(datasource, memoryQuery(instance, range)), "%"));
-            metrics.add(sample("disk", "Disk usage", instance, query(datasource, diskQuery(instance, range)), "%"));
-            metrics.add(sample("disk_io", "IO wait", instance, query(datasource, ioWaitQuery(instance, range)), "%"));
-            metrics.add(sample("network", "Network receive", instance, query(datasource, networkReceiveQuery(instance, range)), "B/s"));
-            metrics.add(sample("network", "Network transmit", instance, query(datasource, networkTransmitQuery(instance, range)), "B/s"));
-            metrics.add(sample("load", "System load", instance, query(datasource, loadQuery(instance, range)), ""));
+            addMetric(metrics, datasource, "cpu", "CPU usage", instance, cpuQuery(instance, range), "%", queryTime);
+            addMetric(metrics, datasource, "memory", "Memory usage", instance, memoryQuery(instance, range), "%", queryTime);
+            addMetric(metrics, datasource, "disk", "Disk usage", instance, diskQuery(instance, range), "%", queryTime);
+            addMetric(metrics, datasource, "disk_io", "IO wait", instance, ioWaitQuery(instance, range), "%", queryTime);
+            addMetric(metrics, datasource, "network", "Network receive", instance, networkReceiveQuery(instance, range), "B/s", queryTime);
+            addMetric(metrics, datasource, "network", "Network transmit", instance, networkTransmitQuery(instance, range), "B/s", queryTime);
+            addMetric(metrics, datasource, "load", "System load", instance, loadQuery(instance, range), "", queryTime);
+        }
+        if (!instances.isEmpty() && metrics.isEmpty()) {
+            throw new IllegalStateException("Prometheus returned no resource metrics");
         }
         return metrics;
     }
 
-    private BigDecimal query(ProjectDatasource datasource, String promql) {
-        URI uri = UriComponentsBuilder.fromHttpUrl(datasource.getBaseUrl())
+    private void addMetric(
+            List<MetricSample> metrics,
+            ProjectDatasource datasource,
+            String category,
+            String name,
+            String instance,
+            String promql,
+            String unit,
+            String queryTime
+    ) {
+        try {
+            metrics.add(sample(category, name, instance, query(datasource, promql, queryTime), unit));
+        } catch (Exception exception) {
+            log.warn(
+                    "Prometheus metric query failed: datasourceId={}, baseUrl={}, category={}, name={}, instance={}, queryTime={}, error={}, promql={}",
+                    datasource.getId(),
+                    datasource.getBaseUrl(),
+                    category,
+                    name,
+                    instance,
+                    queryTime,
+                    exception.getMessage(),
+                    promql
+            );
+        }
+    }
+
+    private BigDecimal query(ProjectDatasource datasource, String promql, String queryTime) {
+        UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(datasource.getBaseUrl())
                 .path("/api/v1/query")
-                .queryParam("query", promql)
+                .queryParam("query", promql);
+        if (queryTime != null) {
+            builder.queryParam("time", queryTime);
+        }
+        URI uri = builder
                 .build()
                 .encode()
                 .toUri();
+        log.info("Querying Prometheus metric: datasourceId={}, baseUrl={}, queryTime={}, promql={}", datasource.getId(), datasource.getBaseUrl(), queryTime, promql);
         JsonNode response = restTemplate.getForObject(uri, JsonNode.class);
         JsonNode value = response.path("data").path("result").path(0).path("value").path(1);
         if (value.isMissingNode()) {
+            log.warn("Prometheus returned no data: datasourceId={}, baseUrl={}, queryTime={}, promql={}, response={}", datasource.getId(), datasource.getBaseUrl(), queryTime, promql, response);
             throw new IllegalStateException("Prometheus returned no data");
         }
         return new BigDecimal(value.asText());
+    }
+
+    private String queryTime(String endTime) {
+        try {
+            return OffsetDateTime.parse(endTime).toInstant().toString();
+        } catch (Exception exception) {
+            return null;
+        }
     }
 
     private String range(String startTime, String endTime) {

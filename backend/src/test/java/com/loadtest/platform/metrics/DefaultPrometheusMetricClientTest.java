@@ -23,6 +23,7 @@ class DefaultPrometheusMetricClientTest {
     private HttpServer server;
     private String baseUrl;
     private final List<String> queries = new ArrayList<>();
+    private final List<String> queryTimes = new ArrayList<>();
 
     @BeforeEach
     void startServer() throws IOException {
@@ -51,6 +52,7 @@ class DefaultPrometheusMetricClientTest {
         );
 
         assertThat(queries).hasSize(7);
+        assertThat(queryTimes).containsOnly("2026-05-13T02:10:00Z");
         assertThat(queries).anySatisfy(query -> assertThat(query).contains("node_cpu_seconds_total").contains("10.0.0.11:9100"));
         assertThat(metrics).hasSize(7);
         assertThat(metric(metrics, "cpu", "CPU usage").getValue()).isEqualByComparingTo(BigDecimal.valueOf(82.5));
@@ -59,11 +61,44 @@ class DefaultPrometheusMetricClientTest {
         assertThat(metric(metrics, "load", "System load").getTargetName()).isEqualTo("10.0.0.11:9100");
     }
 
+    @Test
+    void keepsAvailableMetricsWhenOnePrometheusQueryReturnsNoData() {
+        ProjectDatasource datasource = new ProjectDatasource();
+        datasource.setBaseUrl(baseUrl);
+        DefaultPrometheusMetricClient client = new DefaultPrometheusMetricClient();
+
+        List<MetricSample> metrics = client.queryServerResourceSummary(
+                datasource,
+                List.of("10.0.0.12:9100"),
+                "2026-05-13T10:00:00+08:00",
+                "2026-05-13T10:10:00+08:00"
+        );
+
+        assertThat(queries).hasSize(7);
+        assertThat(metrics).hasSize(6);
+        assertThat(metrics)
+                .noneMatch(metric -> "disk_io".equals(metric.getMetricCategory()) && "IO wait".equals(metric.getMetricName()));
+        assertThat(metric(metrics, "cpu", "CPU usage").getValue()).isEqualByComparingTo(BigDecimal.valueOf(82.5));
+    }
+
     private void handleQuery(HttpExchange exchange) throws IOException {
         Map<String, String> params = TestHttp.queryParams(exchange.getRequestURI().getRawQuery());
         String query = URLDecoder.decode(params.get("query"), StandardCharsets.UTF_8);
         queries.add(query);
+        queryTimes.add(URLDecoder.decode(params.getOrDefault("time", ""), StandardCharsets.UTF_8));
         BigDecimal value = valueForQuery(query);
+        if (query.contains("10.0.0.12:9100") && query.contains("iowait")) {
+            respond(exchange, """
+                    {
+                      "status": "success",
+                      "data": {
+                        "resultType": "vector",
+                        "result": []
+                      }
+                    }
+                    """);
+            return;
+        }
         String body = """
                 {
                   "status": "success",

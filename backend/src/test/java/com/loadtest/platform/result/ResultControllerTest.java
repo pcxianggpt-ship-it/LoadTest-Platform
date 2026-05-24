@@ -67,7 +67,7 @@ class ResultControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("success"))
                 .andExpect(jsonPath("$.data.name").value("基准压测结果"))
-                .andExpect(jsonPath("$.data.metrics.length()").value(4))
+                .andExpect(jsonPath("$.data.metrics.length()").value(9))
                 .andExpect(jsonPath("$.data.analysisJson").value(org.hamcrest.Matchers.containsString("overallStatus")));
 
         mockMvc.perform(get("/api/projects/{projectId}/results", projectId))
@@ -117,6 +117,8 @@ class ResultControllerTest {
                         .content("{\"name\":\"部分成功结果\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("partial_success"))
+                .andExpect(jsonPath("$.data.summaryJson").value(org.hamcrest.Matchers.containsString("prometheus unavailable")))
+                .andExpect(jsonPath("$.data.analysisJson").value(org.hamcrest.Matchers.containsString("Prometheus 指标采集失败")))
                 .andExpect(jsonPath("$.data.metrics.length()").value(2));
     }
 
@@ -234,7 +236,12 @@ class ResultControllerTest {
     private List<MetricSample> resourceMetrics(BigDecimal cpuMax) {
         return List.of(
                 sample("prometheus", "cpu", "CPU usage", "10.0.0.11:9100", "max", cpuMax, "%"),
-                sample("prometheus", "memory", "Memory usage", "10.0.0.11:9100", "max", BigDecimal.valueOf(70), "%")
+                sample("prometheus", "memory", "Memory usage", "10.0.0.11:9100", "max", BigDecimal.valueOf(70), "%"),
+                sample("prometheus", "disk", "Disk usage", "10.0.0.11:9100", "max", BigDecimal.valueOf(50), "%"),
+                sample("prometheus", "disk_io", "IO wait", "10.0.0.11:9100", "max", BigDecimal.valueOf(3), "%"),
+                sample("prometheus", "network", "Network receive", "10.0.0.11:9100", "max", BigDecimal.valueOf(1000), "B/s"),
+                sample("prometheus", "network", "Network transmit", "10.0.0.11:9100", "max", BigDecimal.valueOf(2000), "B/s"),
+                sample("prometheus", "load", "Load 1m", "10.0.0.11:9100", "max", BigDecimal.valueOf(1.5), "")
         );
     }
 

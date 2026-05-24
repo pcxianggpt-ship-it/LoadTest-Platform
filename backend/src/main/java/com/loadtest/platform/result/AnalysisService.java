@@ -10,6 +10,14 @@ import org.springframework.stereotype.Service;
 public class AnalysisService {
 
     public AnalysisSummary analyze(List<MetricSample> metrics, boolean resourceMetricsIncomplete) {
+        return analyze(metrics, resourceMetricsIncomplete, null);
+    }
+
+    public AnalysisSummary analyze(
+            List<MetricSample> metrics,
+            boolean resourceMetricsIncomplete,
+            String resourceMetricsError
+    ) {
         List<String> risks = new ArrayList<>();
         String overallStatus = "normal";
         for (MetricSample metric : metrics) {
@@ -26,7 +34,9 @@ public class AnalysisService {
             if ("normal".equals(overallStatus)) {
                 overallStatus = "warning";
             }
-            risks.add("resource metrics incomplete");
+            risks.add(resourceMetricsError == null || resourceMetricsError.isBlank()
+                    ? "Prometheus 指标采集不完整"
+                    : resourceMetricsError);
         }
         String summary = "normal".equals(overallStatus)
                 ? "当前测试结果未发现明显风险"
