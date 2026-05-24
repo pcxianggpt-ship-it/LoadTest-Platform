@@ -12,6 +12,7 @@ import {
 import { generateResult } from "../api/results";
 import { listTasks, type TestTask } from "../api/tasks";
 import StatusTag from "../components/StatusTag.vue";
+import { formatDisplayDateTime } from "../utils/dateTime";
 
 const route = useRoute();
 const router = useRouter();
@@ -126,9 +127,15 @@ onMounted(loadData);
       <el-table-column label="状态" width="120">
         <template #default="{ row }"><StatusTag :status="row.status" /></template>
       </el-table-column>
-      <el-table-column prop="scheduledAt" label="计划时间" min-width="200" />
-      <el-table-column prop="startedAt" label="开始时间" min-width="200" />
-      <el-table-column prop="endedAt" label="结束时间" min-width="200" />
+      <el-table-column label="计划时间" min-width="200">
+        <template #default="{ row }">{{ formatDisplayDateTime(row.scheduledAt) }}</template>
+      </el-table-column>
+      <el-table-column label="开始时间" min-width="200">
+        <template #default="{ row }">{{ formatDisplayDateTime(row.startedAt) }}</template>
+      </el-table-column>
+      <el-table-column label="结束时间" min-width="200">
+        <template #default="{ row }">{{ formatDisplayDateTime(row.endedAt) }}</template>
+      </el-table-column>
       <el-table-column label="操作" width="210" fixed="right">
         <template #default="{ row }">
           <el-button v-if="canCancel(row.status)" link type="danger" @click="cancel(row)">取消</el-button>
