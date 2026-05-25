@@ -51,6 +51,16 @@ export async function createTask(projectId: number, payload: TaskPayload) {
   return response.data.data;
 }
 
+export async function getTask(taskId: number) {
+  const response = await http.get<ApiResponse<TestTask>>(`/api/tasks/${taskId}`);
+  return response.data.data;
+}
+
+export async function updateTask(taskId: number, payload: TaskPayload) {
+  const response = await http.put<ApiResponse<TestTask>>(`/api/tasks/${taskId}`, payload);
+  return response.data.data;
+}
+
 export async function deleteTask(taskId: number) {
   await http.delete<ApiResponse<null>>(`/api/tasks/${taskId}`);
 }

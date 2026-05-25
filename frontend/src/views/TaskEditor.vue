@@ -1,15 +1,19 @@
 <script setup lang="ts">
 import { ElMessage } from "element-plus";
-import { computed, onMounted, reactive, ref, watch } from "vue";
+import { computed, onMounted, reactive, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { listJmxFiles } from "../api/config";
-import { createTask } from "../api/tasks";
+import { createTask, getTask, updateTask, type TaskPayload } from "../api/tasks";
 
 const route = useRoute();
 const router = useRouter();
-const projectId = computed(() => Number(route.query.projectId || route.params.projectId));
+const routeProjectId = computed(() => Number(route.query.projectId || route.params.projectId));
+const taskId = computed(() => Number(route.params.taskId));
+const isEditing = computed(() => Number.isFinite(taskId.value) && taskId.value > 0);
+const projectId = ref<number>();
 const jmxFiles = ref<string[]>([]);
 const loadingJmxFiles = ref(false);
+const loadingTask = ref(false);
 const form = reactive({
   name: "",
   description: "",
@@ -22,6 +26,10 @@ const form = reactive({
   saveJtl: false,
   jmeterArgsJson: "",
 });
+
+function backToTasks() {
+  router.push(projectId.value ? `/tasks?projectId=${projectId.value}` : "/tasks");
+}
 
 async function loadJmxFiles() {
   if (!projectId.value) {
@@ -43,6 +51,48 @@ async function loadJmxFiles() {
   }
 }
 
+async function loadTask() {
+  if (!isEditing.value) {
+    projectId.value = routeProjectId.value || undefined;
+    return;
+  }
+  loadingTask.value = true;
+  try {
+    const task = await getTask(taskId.value);
+    const step = task.steps?.[0];
+    projectId.value = task.projectId;
+    form.name = task.name;
+    form.description = task.description || "";
+    form.defaultSaveJtl = task.defaultSaveJtl;
+    form.stepName = step?.stepName || "";
+    form.jmxFile = step?.jmxFile || "";
+    form.threads = step?.threads || 100;
+    form.durationSeconds = step?.durationSeconds || 600;
+    form.rampUpSeconds = step?.rampUpSeconds || 60;
+    form.saveJtl = step?.saveJtl || false;
+    form.jmeterArgsJson = step?.jmeterArgsJson || "";
+  } finally {
+    loadingTask.value = false;
+  }
+}
+
+function buildPayload(): TaskPayload {
+  return {
+    name: form.name.trim(),
+    description: form.description.trim() || undefined,
+    defaultSaveJtl: form.defaultSaveJtl,
+    step: {
+      stepName: form.stepName.trim() || form.name.trim(),
+      jmxFile: form.jmxFile.trim(),
+      threads: form.threads,
+      durationSeconds: form.durationSeconds,
+      rampUpSeconds: form.rampUpSeconds,
+      saveJtl: form.saveJtl,
+      jmeterArgsJson: form.jmeterArgsJson.trim() || undefined,
+    },
+  };
+}
+
 async function submitTask() {
   if (!projectId.value) {
     ElMessage.warning("请先从任务管理选择项目");
@@ -56,36 +106,30 @@ async function submitTask() {
     ElMessage.warning("请填写任务名称和 JMX 文件");
     return;
   }
-  await createTask(projectId.value, {
-    name: form.name.trim(),
-    description: form.description.trim() || undefined,
-    defaultSaveJtl: form.defaultSaveJtl,
-    step: {
-      stepName: form.stepName.trim() || form.name.trim(),
-      jmxFile: form.jmxFile.trim(),
-      threads: form.threads,
-      durationSeconds: form.durationSeconds,
-      rampUpSeconds: form.rampUpSeconds,
-      saveJtl: form.saveJtl,
-      jmeterArgsJson: form.jmeterArgsJson.trim() || undefined,
-    },
-  });
-  ElMessage.success("任务已创建");
-  router.push(`/tasks?projectId=${projectId.value}`);
+  if (isEditing.value) {
+    await updateTask(taskId.value, buildPayload());
+    ElMessage.success("任务已更新");
+  } else {
+    await createTask(projectId.value, buildPayload());
+    ElMessage.success("任务已创建");
+  }
+  backToTasks();
 }
 
-watch(projectId, loadJmxFiles);
-onMounted(loadJmxFiles);
+onMounted(async () => {
+  await loadTask();
+  await loadJmxFiles();
+});
 </script>
 
 <template>
-  <section class="page-section narrow-page">
+  <section v-loading="loadingTask" class="page-section narrow-page">
     <div class="page-toolbar">
       <div>
-        <h2>创建测试任务</h2>
+        <h2>{{ isEditing ? "编辑测试任务" : "创建测试任务" }}</h2>
         <p>当前 MVP 创建一个 JMX 步骤，后端数据模型已支持多步骤。</p>
       </div>
-      <el-button @click="router.push(projectId ? `/tasks?projectId=${projectId}` : '/tasks')">返回任务</el-button>
+      <el-button @click="backToTasks">返回任务</el-button>
     </div>
 
     <el-form label-width="130px">
@@ -109,8 +153,8 @@ onMounted(loadJmxFiles);
       <el-form-item label="保存 JTL"><el-switch v-model="form.saveJtl" /></el-form-item>
       <el-form-item label="JMeter 参数"><el-input v-model="form.jmeterArgsJson" type="textarea" :rows="4" /></el-form-item>
       <el-form-item>
-        <el-button type="primary" :disabled="loadingJmxFiles || jmxFiles.length === 0" @click="submitTask">保存任务</el-button>
-        <el-button @click="router.push(projectId ? `/tasks?projectId=${projectId}` : '/tasks')">取消</el-button>
+        <el-button type="primary" :disabled="loadingTask || loadingJmxFiles || jmxFiles.length === 0" @click="submitTask">保存任务</el-button>
+        <el-button @click="backToTasks">取消</el-button>
       </el-form-item>
     </el-form>
   </section>

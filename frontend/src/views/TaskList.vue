@@ -46,6 +46,10 @@ function runTask(task: TestTask) {
   router.push(`/executions?projectId=${task.projectId}&taskId=${task.id}`);
 }
 
+function editTask(task: TestTask) {
+  router.push(`/tasks/${task.id}/edit`);
+}
+
 async function removeTask(task: TestTask) {
   try {
     await ElMessageBox.confirm(
@@ -101,9 +105,10 @@ onMounted(async () => {
       <el-table-column label="更新时间" min-width="200">
         <template #default="{ row }">{{ formatDisplayDateTime(row.updatedAt) }}</template>
       </el-table-column>
-      <el-table-column label="操作" width="150" fixed="right">
+      <el-table-column label="操作" width="190" fixed="right">
         <template #default="{ row }">
           <el-button link type="primary" @click="runTask(row)">执行</el-button>
+          <el-button link type="primary" @click="editTask(row)">编辑</el-button>
           <el-button link type="danger" @click="removeTask(row)">删除</el-button>
         </template>
       </el-table-column>

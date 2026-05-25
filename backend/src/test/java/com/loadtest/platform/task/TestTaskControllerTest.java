@@ -3,6 +3,7 @@ package com.loadtest.platform.task;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -131,6 +132,47 @@ class TestTaskControllerTest {
 
         mockMvc.perform(get("/api/tasks/{taskId}", taskId))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void updatesTaskAndItsJmxStep() throws Exception {
+        Long projectId = createProject();
+        Long taskId = createTask(projectId);
+        String body = """
+                {
+                  "name": "订单查询压测-编辑",
+                  "description": "更新后的任务说明",
+                  "defaultSaveJtl": true,
+                  "step": {
+                    "stepName": "订单查询-编辑",
+                    "jmxFile": "checkout.jmx",
+                    "threads": 200,
+                    "durationSeconds": 900,
+                    "rampUpSeconds": 120,
+                    "saveJtl": true,
+                    "jmeterArgsJson": "{\\"host\\":\\"api.updated.test\\"}"
+                  }
+                }
+                """;
+
+        mockMvc.perform(put("/api/tasks/{taskId}", taskId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.name").value("订单查询压测-编辑"))
+                .andExpect(jsonPath("$.data.description").value("更新后的任务说明"))
+                .andExpect(jsonPath("$.data.defaultSaveJtl").value(true))
+                .andExpect(jsonPath("$.data.steps[0].stepName").value("订单查询-编辑"))
+                .andExpect(jsonPath("$.data.steps[0].jmxFile").value("checkout.jmx"))
+                .andExpect(jsonPath("$.data.steps[0].threads").value(200))
+                .andExpect(jsonPath("$.data.steps[0].durationSeconds").value(900))
+                .andExpect(jsonPath("$.data.steps[0].rampUpSeconds").value(120))
+                .andExpect(jsonPath("$.data.steps[0].saveJtl").value(true));
+
+        mockMvc.perform(get("/api/tasks/{taskId}", taskId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.name").value("订单查询压测-编辑"))
+                .andExpect(jsonPath("$.data.steps[0].jmxFile").value("checkout.jmx"));
     }
 
     private Long createProject() throws Exception {

@@ -73,6 +73,46 @@ public class TestTaskService {
     }
 
     @Transactional
+    public TestTaskResponse updateTask(Long taskId, TestTaskRequest request) {
+        TestTask task = testTaskMapper.selectById(taskId);
+        if (task == null) {
+            throw new NotFoundException("task not found");
+        }
+        String now = OffsetDateTime.now().toString();
+        task.setName(request.getName());
+        task.setDescription(request.getDescription());
+        task.setDefaultSaveJtl(Boolean.TRUE.equals(request.getDefaultSaveJtl()));
+        task.setUpdatedAt(now);
+        testTaskMapper.updateById(task);
+
+        TestTaskRequest.StepRequest stepRequest = request.getStep();
+        TestTaskStep taskStep = firstStep(taskId);
+        if (taskStep == null) {
+            taskStep = new TestTaskStep();
+            taskStep.setTaskId(taskId);
+            taskStep.setStepOrder(1);
+            taskStep.setEnabled(true);
+            taskStep.setCreatedAt(now);
+        }
+        taskStep.setStepName(stepRequest.getStepName());
+        taskStep.setJmxFile(stepRequest.getJmxFile());
+        taskStep.setThreads(stepRequest.getThreads());
+        taskStep.setDurationSeconds(stepRequest.getDurationSeconds());
+        taskStep.setRampUpSeconds(stepRequest.getRampUpSeconds());
+        taskStep.setSaveJtl(stepRequest.getSaveJtl() != null
+                ? stepRequest.getSaveJtl()
+                : task.getDefaultSaveJtl());
+        taskStep.setJmeterArgsJson(stepRequest.getJmeterArgsJson());
+        taskStep.setUpdatedAt(now);
+        if (taskStep.getId() == null) {
+            testTaskStepMapper.insert(taskStep);
+        } else {
+            testTaskStepMapper.updateById(taskStep);
+        }
+        return TestTaskResponse.from(task, listSteps(taskId));
+    }
+
+    @Transactional
     public void deleteTask(Long taskId) {
         if (testTaskMapper.selectById(taskId) == null) {
             throw new NotFoundException("task not found");
@@ -85,6 +125,14 @@ public class TestTaskService {
                 .eq(TestTaskStep::getTaskId, taskId)
                 .orderByAsc(TestTaskStep::getStepOrder);
         return testTaskStepMapper.selectList(wrapper);
+    }
+
+    private TestTaskStep firstStep(Long taskId) {
+        LambdaQueryWrapper<TestTaskStep> wrapper = new LambdaQueryWrapper<TestTaskStep>()
+                .eq(TestTaskStep::getTaskId, taskId)
+                .orderByAsc(TestTaskStep::getStepOrder)
+                .last("limit 1");
+        return testTaskStepMapper.selectOne(wrapper);
     }
 
     private void ensureProjectExists(Long projectId) {

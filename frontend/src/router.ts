@@ -38,6 +38,11 @@ export const router = createRouter({
       component: TaskEditor,
     },
     {
+      path: "/tasks/:taskId/edit",
+      name: "task-editor-edit",
+      component: TaskEditor,
+    },
+    {
       path: "/projects/:projectId/executions",
       name: "execution-list",
       component: ExecutionList,
