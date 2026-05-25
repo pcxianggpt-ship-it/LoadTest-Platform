@@ -22,7 +22,7 @@ public class SshCommandRunner {
             String command,
             Duration commandTimeout
     ) throws Exception {
-        SshClient client = SshClient.setUpDefaultClient();
+        SshClient client = createClient();
         client.start();
         try {
             try (ClientSession session = client.connect(username, host, port)
@@ -37,6 +37,12 @@ public class SshCommandRunner {
         }
     }
 
+    SshClient createClient() {
+        SshClient client = SshClient.setUpDefaultClient();
+        client.setServerKeyVerifier((session, remoteAddress, serverKey) -> true);
+        return client;
+    }
+
     private SshCommandResult runCommand(
             ClientSession session,
             String command,
@@ -44,7 +50,7 @@ public class SshCommandRunner {
     ) throws Exception {
         ByteArrayOutputStream stdout = new ByteArrayOutputStream();
         ByteArrayOutputStream stderr = new ByteArrayOutputStream();
-        try (ClientChannel channel = session.createExecChannel(command)) {
+        try (ClientChannel channel = session.createExecChannel(toLoginShellCommand(command))) {
             channel.setOut(stdout);
             channel.setErr(stderr);
             channel.open().verify(CONNECT_TIMEOUT);
@@ -59,5 +65,9 @@ public class SshCommandRunner {
                     .stderr(stderr.toString(StandardCharsets.UTF_8))
                     .build();
         }
+    }
+
+    String toLoginShellCommand(String command) {
+        return "bash -lc '" + command.replace("'", "'\"'\"'") + "'";
     }
 }
