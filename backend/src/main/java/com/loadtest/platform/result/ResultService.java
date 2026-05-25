@@ -8,6 +8,7 @@ import com.loadtest.platform.common.NotFoundException;
 import com.loadtest.platform.execution.TestExecution;
 import com.loadtest.platform.execution.TestExecutionMapper;
 import com.loadtest.platform.metrics.InfluxMetricClient;
+import com.loadtest.platform.metrics.K8sPodSelector;
 import com.loadtest.platform.metrics.MetricSample;
 import com.loadtest.platform.metrics.PrometheusMetricClient;
 import com.loadtest.platform.projectconfig.ProjectDatasource;
@@ -94,6 +95,7 @@ public class ResultService {
         try {
             ProjectDatasource prometheus = datasource(execution.getProjectId(), "prometheus");
             List<String> instances = parseInstances(prometheus.getExtraConfigJson());
+            List<K8sPodSelector> k8sPods = parseK8sPods(prometheus.getExtraConfigJson());
             int metricCountBefore = metrics.size();
             metrics.addAll(prometheusMetricClient.queryServerResourceSummary(
                     prometheus,
@@ -101,8 +103,16 @@ public class ResultService {
                     execution.getStartedAt(),
                     execution.getEndedAt()
             ));
+            if (!k8sPods.isEmpty()) {
+                metrics.addAll(prometheusMetricClient.queryK8sPodResourceAverage(
+                        prometheus,
+                        k8sPods,
+                        execution.getStartedAt(),
+                        execution.getEndedAt()
+                ));
+            }
             int resourceMetricCount = metrics.size() - metricCountBefore;
-            int expectedResourceMetricCount = instances.size() * 7;
+            int expectedResourceMetricCount = instances.size() * 7 + k8sPods.size() * 2;
             if (expectedResourceMetricCount > 0 && resourceMetricCount < expectedResourceMetricCount) {
                 resourceMetricsIncomplete = true;
                 resourceMetricsError = "Prometheus 指标采集不完整: expected="
@@ -260,6 +270,24 @@ public class ResultService {
         }
     }
 
+    private List<K8sPodSelector> parseK8sPods(String extraConfigJson) {
+        if (extraConfigJson == null || extraConfigJson.isBlank()) {
+            return Collections.emptyList();
+        }
+        try {
+            InstanceConfig config = objectMapper.readValue(extraConfigJson, InstanceConfig.class);
+            if (config.k8sPods == null) {
+                return Collections.emptyList();
+            }
+            return config.k8sPods.stream()
+                    .filter(selector -> selector.namespace() != null && !selector.namespace().isBlank())
+                    .filter(selector -> selector.podRegex() != null && !selector.podRegex().isBlank())
+                    .toList();
+        } catch (JsonProcessingException exception) {
+            return Collections.emptyList();
+        }
+    }
+
     private String jsonString(Object value) {
         try {
             return objectMapper.writeValueAsString(value);
@@ -271,6 +299,6 @@ public class ResultService {
     private record ResultSummary(int metricCount, String errorMessage) {
     }
 
-    private record InstanceConfig(List<String> instances) {
+    private record InstanceConfig(List<String> instances, List<K8sPodSelector> k8sPods) {
     }
 }

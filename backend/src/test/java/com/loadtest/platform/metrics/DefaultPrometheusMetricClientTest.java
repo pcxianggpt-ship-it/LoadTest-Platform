@@ -81,6 +81,41 @@ class DefaultPrometheusMetricClientTest {
         assertThat(metric(metrics, "cpu", "CPU usage").getValue()).isEqualByComparingTo(BigDecimal.valueOf(82.5));
     }
 
+    @Test
+    void queriesAverageK8sPodCpuAndMemoryForEachSelector() {
+        ProjectDatasource datasource = new ProjectDatasource();
+        datasource.setBaseUrl(baseUrl);
+        DefaultPrometheusMetricClient client = new DefaultPrometheusMetricClient();
+
+        List<MetricSample> metrics = client.queryK8sPodResourceAverage(
+                datasource,
+                List.of(new K8sPodSelector("default", "order-service-.*")),
+                "2026-05-13T10:00:00+08:00",
+                "2026-05-13T10:10:00+08:00"
+        );
+
+        assertThat(queries).hasSize(2);
+        assertThat(queryTimes).containsOnly("2026-05-13T02:10:00Z");
+        assertThat(queries).anySatisfy(query -> assertThat(query)
+                .contains("container_cpu_usage_seconds_total")
+                .contains("namespace=\"default\"")
+                .contains("pod=~\"order-service-.*\"")
+                .contains("[600s:]"));
+        assertThat(queries).anySatisfy(query -> assertThat(query)
+                .contains("container_memory_working_set_bytes")
+                .contains("namespace=\"default\"")
+                .contains("pod=~\"order-service-.*\"")
+                .contains("[600s:]"));
+        assertThat(metrics).hasSize(2);
+        assertThat(metric(metrics, "k8s_pod_cpu", "Pod CPU usage").getTargetName())
+                .isEqualTo("default/order-service-.*");
+        assertThat(metric(metrics, "k8s_pod_cpu", "Pod CPU usage").getStatType()).isEqualTo("avg");
+        assertThat(metric(metrics, "k8s_pod_cpu", "Pod CPU usage").getUnit()).isEqualTo("cores");
+        assertThat(metric(metrics, "k8s_pod_cpu", "Pod CPU usage").getValue()).isEqualByComparingTo("0.35");
+        assertThat(metric(metrics, "k8s_pod_memory", "Pod memory usage").getUnit()).isEqualTo("MiB");
+        assertThat(metric(metrics, "k8s_pod_memory", "Pod memory usage").getValue()).isEqualByComparingTo("256");
+    }
+
     private void handleQuery(HttpExchange exchange) throws IOException {
         Map<String, String> params = TestHttp.queryParams(exchange.getRequestURI().getRawQuery());
         String query = URLDecoder.decode(params.get("query"), StandardCharsets.UTF_8);
@@ -119,6 +154,12 @@ class DefaultPrometheusMetricClientTest {
     private BigDecimal valueForQuery(String query) {
         if (query.contains("node_cpu_seconds_total")) {
             return BigDecimal.valueOf(82.5);
+        }
+        if (query.contains("container_cpu_usage_seconds_total")) {
+            return BigDecimal.valueOf(0.35);
+        }
+        if (query.contains("container_memory_working_set_bytes")) {
+            return BigDecimal.valueOf(256);
         }
         if (query.contains("MemAvailable_bytes")) {
             return BigDecimal.valueOf(71.2);

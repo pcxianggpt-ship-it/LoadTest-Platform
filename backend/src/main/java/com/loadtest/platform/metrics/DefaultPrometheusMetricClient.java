@@ -54,6 +54,29 @@ public class DefaultPrometheusMetricClient implements PrometheusMetricClient {
         return metrics;
     }
 
+    @Override
+    public List<MetricSample> queryK8sPodResourceAverage(
+            ProjectDatasource datasource,
+            List<K8sPodSelector> selectors,
+            String startTime,
+            String endTime
+    ) {
+        List<MetricSample> metrics = new ArrayList<>();
+        String range = range(startTime, endTime);
+        String queryTime = queryTime(endTime);
+        for (K8sPodSelector selector : selectors) {
+            String target = selector.namespace() + "/" + selector.podRegex();
+            addAverageMetric(metrics, datasource, "k8s_pod_cpu", "Pod CPU usage", target,
+                    podCpuAverageQuery(selector, range), "cores", queryTime);
+            addAverageMetric(metrics, datasource, "k8s_pod_memory", "Pod memory usage", target,
+                    podMemoryAverageQuery(selector, range), "MiB", queryTime);
+        }
+        if (!selectors.isEmpty() && metrics.isEmpty()) {
+            throw new IllegalStateException("Prometheus returned no k8s pod resource metrics");
+        }
+        return metrics;
+    }
+
     private void addMetric(
             List<MetricSample> metrics,
             ProjectDatasource datasource,
@@ -66,6 +89,33 @@ public class DefaultPrometheusMetricClient implements PrometheusMetricClient {
     ) {
         try {
             metrics.add(sample(category, name, instance, query(datasource, promql, queryTime), unit));
+        } catch (Exception exception) {
+            log.warn(
+                    "Prometheus metric query failed: datasourceId={}, baseUrl={}, category={}, name={}, instance={}, queryTime={}, error={}, promql={}",
+                    datasource.getId(),
+                    datasource.getBaseUrl(),
+                    category,
+                    name,
+                    instance,
+                    queryTime,
+                    exception.getMessage(),
+                    promql
+            );
+        }
+    }
+
+    private void addAverageMetric(
+            List<MetricSample> metrics,
+            ProjectDatasource datasource,
+            String category,
+            String name,
+            String instance,
+            String promql,
+            String unit,
+            String queryTime
+    ) {
+        try {
+            metrics.add(sample(category, name, instance, query(datasource, promql, queryTime), unit, "avg"));
         } catch (Exception exception) {
             log.warn(
                     "Prometheus metric query failed: datasourceId={}, baseUrl={}, category={}, name={}, instance={}, queryTime={}, error={}, promql={}",
@@ -157,13 +207,29 @@ public class DefaultPrometheusMetricClient implements PrometheusMetricClient {
         return "max_over_time(node_load1{instance=\"" + instance + "\"}[" + range + ":])";
     }
 
+    private String podCpuAverageQuery(K8sPodSelector selector, String range) {
+        return "avg_over_time((sum by(namespace,pod) (rate(container_cpu_usage_seconds_total{namespace=\""
+                + selector.namespace() + "\",pod=~\"" + selector.podRegex()
+                + "\",container!=\"\",image!=\"\"}[1m])))[" + range + ":])";
+    }
+
+    private String podMemoryAverageQuery(K8sPodSelector selector, String range) {
+        return "avg_over_time((sum by(namespace,pod) (container_memory_working_set_bytes{namespace=\""
+                + selector.namespace() + "\",pod=~\"" + selector.podRegex()
+                + "\",container!=\"\",image!=\"\"} / 1024 / 1024))[" + range + ":])";
+    }
+
     private MetricSample sample(String category, String name, String target, BigDecimal value, String unit) {
+        return sample(category, name, target, value, unit, "max");
+    }
+
+    private MetricSample sample(String category, String name, String target, BigDecimal value, String unit, String statType) {
         return MetricSample.builder()
                 .source("prometheus")
                 .metricCategory(category)
                 .metricName(name)
                 .targetName(target)
-                .statType("max")
+                .statType(statType)
                 .value(value)
                 .unit(unit)
                 .build();

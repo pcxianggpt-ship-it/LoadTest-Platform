@@ -11,4 +11,11 @@ public interface PrometheusMetricClient {
             String startTime,
             String endTime
     );
+
+    List<MetricSample> queryK8sPodResourceAverage(
+            ProjectDatasource datasource,
+            List<K8sPodSelector> selectors,
+            String startTime,
+            String endTime
+    );
 }

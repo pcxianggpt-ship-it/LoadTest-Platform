@@ -50,7 +50,15 @@ const jmeterMetrics = computed<ResultMetric[]>(() =>
 );
 
 const prometheusMetrics = computed<ResultMetric[]>(() =>
-  (result.value?.metrics || []).filter((metric) => metric.source === "prometheus")
+  (result.value?.metrics || []).filter(
+    (metric) => metric.source === "prometheus" && !metric.metricCategory.startsWith("k8s_pod_")
+  )
+);
+
+const k8sPodMetrics = computed<ResultMetric[]>(() =>
+  (result.value?.metrics || []).filter(
+    (metric) => metric.source === "prometheus" && metric.metricCategory.startsWith("k8s_pod_")
+  )
 );
 
 async function loadResult() {
@@ -119,6 +127,11 @@ onMounted(loadResult);
     <section class="settings-block">
       <h3>Prometheus 资源指标</h3>
       <MetricTable :metrics="prometheusMetrics" />
+    </section>
+
+    <section class="settings-block">
+      <h3>K8s Pod 资源指标</h3>
+      <MetricTable :metrics="k8sPodMetrics" />
     </section>
 
     <section class="settings-block">

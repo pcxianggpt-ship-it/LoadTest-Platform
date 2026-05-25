@@ -77,6 +77,30 @@ class ResultControllerTest {
     }
 
     @Test
+    void includesK8sPodCpuAndMemoryMetricsWhenPrometheusDatasourceHasPodSelectors() throws Exception {
+        Long projectId = createProjectWithK8sPodDatasource();
+        Long executionId = createSuccessExecution(projectId);
+        when(influxMetricClient.queryJMeterSummary(any(), any(), any()))
+                .thenReturn(jmeterMetrics(BigDecimal.valueOf(800)));
+        when(prometheusMetricClient.queryServerResourceSummary(any(), any(), any(), any()))
+                .thenReturn(resourceMetrics(BigDecimal.valueOf(60)));
+        when(prometheusMetricClient.queryK8sPodResourceAverage(any(), any(), any(), any()))
+                .thenReturn(k8sPodMetrics());
+
+        mockMvc.perform(post("/api/executions/{executionId}/results", executionId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"pod resource result\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("success"))
+                .andExpect(jsonPath("$.data.metrics.length()").value(11))
+                .andExpect(jsonPath("$.data.metrics[9].metricCategory").value("k8s_pod_cpu"))
+                .andExpect(jsonPath("$.data.metrics[9].statType").value("avg"))
+                .andExpect(jsonPath("$.data.metrics[9].unit").value("cores"))
+                .andExpect(jsonPath("$.data.metrics[10].metricCategory").value("k8s_pod_memory"))
+                .andExpect(jsonPath("$.data.metrics[10].unit").value("MiB"));
+    }
+
+    @Test
     void rejectsResultGenerationFromNonSuccessExecution() throws Exception {
         Long projectId = createProjectWithDatasources();
         Long taskId = createTask(projectId);
@@ -184,6 +208,26 @@ class ResultControllerTest {
         return projectId;
     }
 
+    private Long createProjectWithK8sPodDatasource() throws Exception {
+        Long projectId = createProject();
+        putDatasource(projectId, "influxdb", """
+                {
+                  "name": "jmeter-influx",
+                  "baseUrl": "http://10.0.0.20:8086",
+                  "databaseName": "jmeter",
+                  "extraConfigJson": "{\\"measurement\\":\\"jmeter\\"}"
+                }
+                """);
+        putDatasource(projectId, "prometheus", """
+                {
+                  "name": "resource-prometheus",
+                  "baseUrl": "http://10.0.0.21:9090",
+                  "extraConfigJson": "{\\"instances\\":[\\"10.0.0.11:9100\\"],\\"k8sPods\\":[{\\"namespace\\":\\"default\\",\\"podRegex\\":\\"order-service-.*\\"}]}"
+                }
+                """);
+        return projectId;
+    }
+
     private Long createProject() throws Exception {
         String body = """
                 {
@@ -267,6 +311,13 @@ class ResultControllerTest {
                 sample("prometheus", "network", "Network receive", "10.0.0.11:9100", "max", BigDecimal.valueOf(1000), "B/s"),
                 sample("prometheus", "network", "Network transmit", "10.0.0.11:9100", "max", BigDecimal.valueOf(2000), "B/s"),
                 sample("prometheus", "load", "Load 1m", "10.0.0.11:9100", "max", BigDecimal.valueOf(1.5), "")
+        );
+    }
+
+    private List<MetricSample> k8sPodMetrics() {
+        return List.of(
+                sample("prometheus", "k8s_pod_cpu", "Pod CPU usage", "default/order-service-.*", "avg", BigDecimal.valueOf(0.35), "cores"),
+                sample("prometheus", "k8s_pod_memory", "Pod memory usage", "default/order-service-.*", "avg", BigDecimal.valueOf(256), "MiB")
         );
     }
 
