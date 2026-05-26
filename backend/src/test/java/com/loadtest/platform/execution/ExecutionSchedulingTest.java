@@ -12,6 +12,7 @@ class ExecutionSchedulingTest {
     void schedulerChecksForDueExecutionsEverySecond() throws Exception {
         assertThat(fixedDelay("promoteScheduledExecutions")).isEqualTo(1000);
         assertThat(fixedDelay("runOnePendingExecution")).isEqualTo(1000);
+        assertThat(fixedDelay("checkRunningExecutions")).isEqualTo(5000);
     }
 
     @Test

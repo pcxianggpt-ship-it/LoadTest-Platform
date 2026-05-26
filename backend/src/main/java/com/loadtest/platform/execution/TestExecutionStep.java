@@ -24,6 +24,8 @@ public class TestExecutionStep {
     private String sshLog;
     private String errorMessage;
     private String jtlPath;
+    private String remoteRunDir;
+    private String remotePid;
     private String createdAt;
     private String updatedAt;
 }

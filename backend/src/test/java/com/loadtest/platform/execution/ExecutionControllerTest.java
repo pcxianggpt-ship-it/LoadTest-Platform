@@ -12,6 +12,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.loadtest.platform.ssh.SshCommandResult;
@@ -25,6 +26,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
+import org.mockito.ArgumentCaptor;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
@@ -128,11 +130,17 @@ class ExecutionControllerTest {
         when(sshCommandRunner.runWithPassword(anyString(), anyInt(), anyString(), anyString(), anyString(), any()))
                 .thenReturn(SshCommandResult.builder()
                         .exitCode(0)
-                        .stdout("jmeter done")
+                        .stdout("4242\n")
+                        .stderr("")
+                        .build())
+                .thenReturn(SshCommandResult.builder()
+                        .exitCode(0)
+                        .stdout("DONE\n0\nstdout:\njmeter done\nstderr:\n")
                         .stderr("")
                         .build());
 
         executionService.runOnePendingExecution();
+        executionService.checkRunningExecutions();
 
         TestExecution execution = testExecutionMapper.selectById(executionId);
         assertThat(execution.getStatus()).isEqualTo("success");
@@ -156,12 +164,18 @@ class ExecutionControllerTest {
         Long executionId = createManualExecution(taskId);
         when(sshCommandRunner.runWithPassword(anyString(), anyInt(), anyString(), anyString(), anyString(), any()))
                 .thenReturn(SshCommandResult.builder()
-                        .exitCode(1)
-                        .stdout("")
-                        .stderr("jmeter failed")
+                        .exitCode(0)
+                        .stdout("4243\n")
+                        .stderr("")
+                        .build())
+                .thenReturn(SshCommandResult.builder()
+                        .exitCode(0)
+                        .stdout("DONE\n1\nstdout:\nstderr:\njmeter failed\n")
+                        .stderr("")
                         .build());
 
         executionService.runOnePendingExecution();
+        executionService.checkRunningExecutions();
 
         TestExecution execution = testExecutionMapper.selectById(executionId);
         assertThat(execution.getStatus()).isEqualTo("failed");
@@ -171,6 +185,66 @@ class ExecutionControllerTest {
         assertThat(steps).hasSize(1);
         assertThat(steps.get(0).getStatus()).isEqualTo("failed");
         assertThat(steps.get(0).getErrorMessage()).contains("exit code 1");
+    }
+
+    @Test
+    void startsJMeterInBackgroundAndKeepsExecutionRunningUntilRemoteDoneFileExists() throws Exception {
+        Long projectId = createProject();
+        createJMeterServer(projectId);
+        Long taskId = createTask(projectId);
+        Long executionId = createManualExecution(taskId);
+        when(sshCommandRunner.runWithPassword(anyString(), anyInt(), anyString(), anyString(), anyString(), any()))
+                .thenReturn(SshCommandResult.builder()
+                        .exitCode(0)
+                        .stdout("9876\n")
+                        .stderr("")
+                        .build());
+
+        executionService.runOnePendingExecution();
+
+        TestExecution execution = testExecutionMapper.selectById(executionId);
+        assertThat(execution.getStatus()).isEqualTo("running");
+        assertThat(execution.getEndedAt()).isNull();
+
+        ArgumentCaptor<String> commandCaptor = ArgumentCaptor.forClass(String.class);
+        verify(sshCommandRunner).runWithPassword(anyString(), anyInt(), anyString(), anyString(), commandCaptor.capture(), any());
+        assertThat(commandCaptor.getValue()).contains("nohup sh -c");
+        assertThat(commandCaptor.getValue()).contains("exit_code");
+        assertThat(commandCaptor.getValue()).contains("done");
+        assertThat(commandCaptor.getValue()).contains("& echo $!");
+
+        List<TestExecutionStep> steps = testExecutionStepMapper.selectList(new LambdaQueryWrapper<TestExecutionStep>()
+                .eq(TestExecutionStep::getExecutionId, executionId));
+        assertThat(steps).hasSize(1);
+        assertThat(steps.get(0).getStatus()).isEqualTo("running");
+        assertThat(steps.get(0).getRemotePid()).isEqualTo("9876");
+        assertThat(steps.get(0).getRemoteRunDir()).contains("execution_" + executionId + "_step_1_run");
+    }
+
+    @Test
+    void marksRunningExecutionFailedWhenRemoteProcessDisappearsWithoutDoneFile() throws Exception {
+        Long projectId = createProject();
+        createJMeterServer(projectId);
+        Long taskId = createTask(projectId);
+        Long executionId = createManualExecution(taskId);
+        when(sshCommandRunner.runWithPassword(anyString(), anyInt(), anyString(), anyString(), anyString(), any()))
+                .thenReturn(SshCommandResult.builder()
+                        .exitCode(0)
+                        .stdout("9877\n")
+                        .stderr("")
+                        .build())
+                .thenReturn(SshCommandResult.builder()
+                        .exitCode(0)
+                        .stdout("LOST\nstdout:\nstderr:\n")
+                        .stderr("")
+                        .build());
+
+        executionService.runOnePendingExecution();
+        executionService.checkRunningExecutions();
+
+        TestExecution execution = testExecutionMapper.selectById(executionId);
+        assertThat(execution.getStatus()).isEqualTo("failed");
+        assertThat(execution.getErrorMessage()).contains("Remote JMeter process stopped before completion");
     }
 
     private Long createProject() throws Exception {

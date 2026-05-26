@@ -125,21 +125,18 @@ public class ExecutionService {
             if (steps.isEmpty()) {
                 throw new IllegalStateException("task has no enabled steps");
             }
-            for (TestTaskStep step : steps) {
-                execution.setCurrentStepOrder(step.getStepOrder());
-                execution.setUpdatedAt(OffsetDateTime.now().toString());
-                testExecutionMapper.updateById(execution);
-
-                TestExecutionStep executionStep = createExecutionStep(execution, step);
-                runStep(server, executionStep, step);
-                if (!"success".equals(executionStep.getStatus())) {
-                    finishExecution(execution, "failed", executionStep.getErrorMessage());
-                    return;
-                }
-            }
-            finishExecution(execution, "success", null);
+            startStep(server, execution, steps.get(0));
         } catch (Exception exception) {
             finishExecution(execution, "failed", exception.getMessage());
+        }
+    }
+
+    public void checkRunningExecutions() {
+        List<TestExecution> runningExecutions = testExecutionMapper.selectList(new LambdaQueryWrapper<TestExecution>()
+                .eq(TestExecution::getStatus, "running")
+                .orderByAsc(TestExecution::getId));
+        for (TestExecution execution : runningExecutions) {
+            checkRunningExecution(execution);
         }
     }
 
@@ -189,51 +186,140 @@ public class ExecutionService {
         return executionStep;
     }
 
-    private void runStep(JMeterServer server, TestExecutionStep executionStep, TestTaskStep taskStep) {
+    private void startStep(JMeterServer server, TestExecution execution, TestTaskStep taskStep) {
+        execution.setCurrentStepOrder(taskStep.getStepOrder());
+        execution.setUpdatedAt(OffsetDateTime.now().toString());
+        testExecutionMapper.updateById(execution);
+
+        TestExecutionStep executionStep = createExecutionStep(execution, taskStep);
         JMeterCommand command = jMeterCommandBuilder.build(server, taskStep, executionStep.getExecutionId());
         executionStep.setCommand(command.getCommand());
         executionStep.setJtlPath(command.getJtlPath());
+        executionStep.setRemoteRunDir(remoteRunDir(server, executionStep));
         testExecutionStepMapper.updateById(executionStep);
 
-        String errorMessage = null;
         try {
-            SshCommandResult result = runCommand(server, taskStep, command);
-            executionStep.setExitCode(result.getExitCode());
+            SshCommandResult result = startRemoteCommand(server, command, executionStep.getRemoteRunDir());
             executionStep.setSshLog(combineLog(result));
             if (result.getExitCode() == 0) {
-                executionStep.setStatus("success");
+                executionStep.setRemotePid(firstLine(result.getStdout()));
             } else {
                 executionStep.setStatus("failed");
-                errorMessage = "JMeter command failed with exit code " + result.getExitCode();
-                executionStep.setErrorMessage(errorMessage);
+                executionStep.setExitCode(result.getExitCode());
+                executionStep.setErrorMessage("failed to start JMeter command with exit code " + result.getExitCode());
+                finishExecution(execution, "failed", executionStep.getErrorMessage());
             }
         } catch (Exception exception) {
             executionStep.setStatus("failed");
-            errorMessage = exception.getMessage();
-            executionStep.setErrorMessage(errorMessage);
+            executionStep.setErrorMessage(exception.getMessage());
+            finishExecution(execution, "failed", exception.getMessage());
         }
-        String endedAt = OffsetDateTime.now().toString();
-        executionStep.setEndedAt(endedAt);
-        executionStep.setDurationSeconds(durationSeconds(executionStep.getStartedAt(), endedAt));
-        executionStep.setUpdatedAt(endedAt);
-        if (errorMessage != null && executionStep.getErrorMessage() == null) {
-            executionStep.setErrorMessage(errorMessage);
-        }
+        executionStep.setUpdatedAt(OffsetDateTime.now().toString());
         testExecutionStepMapper.updateById(executionStep);
     }
 
-    private SshCommandResult runCommand(JMeterServer server, TestTaskStep taskStep, JMeterCommand command) throws Exception {
+    private void checkRunningExecution(TestExecution execution) {
+        TestExecutionStep runningStep = runningStep(execution.getId());
+        if (runningStep == null) {
+            finishExecution(execution, "failed", "running execution has no running step");
+            return;
+        }
+
+        try {
+            JMeterServer server = getJMeterServerOrThrow(execution.getProjectId());
+            SshCommandResult result = checkRemoteCommand(server, runningStep);
+            String stdout = nullToEmpty(result.getStdout());
+            runningStep.setSshLog(combineLog(result));
+            if (stdout.startsWith("RUNNING")) {
+                runningStep.setUpdatedAt(OffsetDateTime.now().toString());
+                testExecutionStepMapper.updateById(runningStep);
+                return;
+            }
+            if (stdout.startsWith("DONE")) {
+                finishRunningStep(execution, runningStep, stdout);
+                return;
+            }
+            failRunningStep(execution, runningStep, "Remote JMeter process stopped before completion");
+        } catch (Exception exception) {
+            failRunningStep(execution, runningStep, exception.getMessage());
+        }
+    }
+
+    private TestExecutionStep runningStep(Long executionId) {
+        return testExecutionStepMapper.selectOne(new LambdaQueryWrapper<TestExecutionStep>()
+                .eq(TestExecutionStep::getExecutionId, executionId)
+                .eq(TestExecutionStep::getStatus, "running")
+                .orderByAsc(TestExecutionStep::getStepOrder)
+                .last("limit 1"));
+    }
+
+    private void finishRunningStep(TestExecution execution, TestExecutionStep runningStep, String statusOutput) {
+        Integer exitCode = parseExitCode(statusOutput);
+        String endedAt = OffsetDateTime.now().toString();
+        runningStep.setExitCode(exitCode);
+        runningStep.setEndedAt(endedAt);
+        runningStep.setDurationSeconds(durationSeconds(runningStep.getStartedAt(), endedAt));
+        runningStep.setUpdatedAt(endedAt);
+        if (exitCode != null && exitCode == 0) {
+            runningStep.setStatus("success");
+            testExecutionStepMapper.updateById(runningStep);
+            startNextStepOrFinish(execution, runningStep.getStepOrder());
+            return;
+        }
+        runningStep.setStatus("failed");
+        runningStep.setErrorMessage("JMeter command failed with exit code " + exitCode);
+        testExecutionStepMapper.updateById(runningStep);
+        finishExecution(execution, "failed", runningStep.getErrorMessage());
+    }
+
+    private void failRunningStep(TestExecution execution, TestExecutionStep runningStep, String errorMessage) {
+        String endedAt = OffsetDateTime.now().toString();
+        runningStep.setStatus("failed");
+        runningStep.setEndedAt(endedAt);
+        runningStep.setDurationSeconds(durationSeconds(runningStep.getStartedAt(), endedAt));
+        runningStep.setErrorMessage(errorMessage);
+        runningStep.setUpdatedAt(endedAt);
+        testExecutionStepMapper.updateById(runningStep);
+        finishExecution(execution, "failed", errorMessage);
+    }
+
+    private void startNextStepOrFinish(TestExecution execution, Integer completedStepOrder) {
+        List<TestTaskStep> steps = enabledSteps(execution.getTaskId());
+        for (TestTaskStep step : steps) {
+            if (step.getStepOrder() != null && completedStepOrder != null
+                    && step.getStepOrder() > completedStepOrder) {
+                startStep(getJMeterServerOrThrow(execution.getProjectId()), execution, step);
+                return;
+            }
+        }
+        finishExecution(execution, "success", null);
+    }
+
+    private SshCommandResult startRemoteCommand(JMeterServer server, JMeterCommand command, String runDir) throws Exception {
         if (!"password".equals(server.getSshAuthType())) {
             throw new IllegalArgumentException("only password ssh auth is supported in MVP");
         }
-        int timeoutSeconds = taskStep.getDurationSeconds() == null ? 120 : taskStep.getDurationSeconds() + 120;
         return sshCommandRunner.runWithPassword(
                 server.getHost(),
                 server.getSshPort(),
                 server.getSshUsername(),
                 server.getSshPasswordEncrypted(),
-                command.getCommand(),
-                Duration.ofSeconds(timeoutSeconds)
+                startCommand(command, runDir),
+                Duration.ofSeconds(30)
+        );
+    }
+
+    private SshCommandResult checkRemoteCommand(JMeterServer server, TestExecutionStep step) throws Exception {
+        if (!"password".equals(server.getSshAuthType())) {
+            throw new IllegalArgumentException("only password ssh auth is supported in MVP");
+        }
+        return sshCommandRunner.runWithPassword(
+                server.getHost(),
+                server.getSshPort(),
+                server.getSshUsername(),
+                server.getSshPasswordEncrypted(),
+                checkCommand(step),
+                Duration.ofSeconds(30)
         );
     }
 
@@ -243,6 +329,69 @@ public class ExecutionService {
 
     private String nullToEmpty(String value) {
         return value == null ? "" : value;
+    }
+
+    private String remoteRunDir(JMeterServer server, TestExecutionStep step) {
+        return joinPath(server.getLogDir(), "execution_" + step.getExecutionId() + "_step_" + step.getStepOrder() + "_run");
+    }
+
+    private String startCommand(JMeterCommand command, String runDir) {
+        String stdoutPath = joinPath(runDir, "stdout.log");
+        String stderrPath = joinPath(runDir, "stderr.log");
+        String exitCodePath = joinPath(runDir, "exit_code");
+        String donePath = joinPath(runDir, "done");
+        String script = command.getCommand()
+                + " > " + shellQuote(stdoutPath)
+                + " 2> " + shellQuote(stderrPath)
+                + "; code=$?"
+                + "; echo $code > " + shellQuote(exitCodePath)
+                + "; touch " + shellQuote(donePath);
+        return "mkdir -p " + shellQuote(runDir)
+                + " && (nohup sh -c " + shellQuote(script)
+                + " >/dev/null 2>&1 & echo $!)";
+    }
+
+    private String checkCommand(TestExecutionStep step) {
+        String runDir = step.getRemoteRunDir();
+        String donePath = joinPath(runDir, "done");
+        String exitCodePath = joinPath(runDir, "exit_code");
+        String stdoutPath = joinPath(runDir, "stdout.log");
+        String stderrPath = joinPath(runDir, "stderr.log");
+        String pid = step.getRemotePid();
+        return "if [ -f " + shellQuote(donePath) + " ]; then "
+                + "echo DONE; cat " + shellQuote(exitCodePath) + "; "
+                + "echo stdout:; cat " + shellQuote(stdoutPath) + " 2>/dev/null; "
+                + "echo stderr:; cat " + shellQuote(stderrPath) + " 2>/dev/null; "
+                + "elif kill -0 " + shellQuote(pid) + " 2>/dev/null; then "
+                + "echo RUNNING; "
+                + "else echo LOST; fi";
+    }
+
+    private String firstLine(String value) {
+        if (value == null) {
+            return null;
+        }
+        return value.lines().findFirst().map(String::trim).orElse(null);
+    }
+
+    private Integer parseExitCode(String statusOutput) {
+        return statusOutput.lines()
+                .skip(1)
+                .findFirst()
+                .map(String::trim)
+                .filter(value -> !value.isBlank())
+                .map(Integer::parseInt)
+                .orElse(null);
+    }
+
+    private String joinPath(String base, String child) {
+        String normalizedBase = base == null ? "" : base.replaceAll("/+$", "");
+        String normalizedChild = child == null ? "" : child.replaceAll("^/+", "");
+        return normalizedBase + "/" + normalizedChild;
+    }
+
+    private String shellQuote(String value) {
+        return "'" + nullToEmpty(value).replace("'", "'\"'\"'") + "'";
     }
 
     private void finishExecution(TestExecution execution, String status, String errorMessage) {

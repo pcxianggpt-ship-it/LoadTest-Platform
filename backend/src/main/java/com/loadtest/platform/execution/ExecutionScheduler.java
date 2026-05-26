@@ -19,4 +19,9 @@ public class ExecutionScheduler {
     public void runOnePendingExecution() {
         executionService.runOnePendingExecution();
     }
+
+    @Scheduled(fixedDelay = 5000)
+    public void checkRunningExecutions() {
+        executionService.checkRunningExecutions();
+    }
 }
