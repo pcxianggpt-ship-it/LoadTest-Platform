@@ -106,14 +106,21 @@ class DefaultPrometheusMetricClientTest {
                 .contains("namespace=\"default\"")
                 .contains("pod=~\"order-service-.*\"")
                 .contains("[600s:]"));
-        assertThat(metrics).hasSize(2);
-        assertThat(metric(metrics, "k8s_pod_cpu", "Pod CPU usage").getTargetName())
-                .isEqualTo("default/order-service-.*");
-        assertThat(metric(metrics, "k8s_pod_cpu", "Pod CPU usage").getStatType()).isEqualTo("avg");
-        assertThat(metric(metrics, "k8s_pod_cpu", "Pod CPU usage").getUnit()).isEqualTo("cores");
-        assertThat(metric(metrics, "k8s_pod_cpu", "Pod CPU usage").getValue()).isEqualByComparingTo("0.35");
-        assertThat(metric(metrics, "k8s_pod_memory", "Pod memory usage").getUnit()).isEqualTo("MiB");
-        assertThat(metric(metrics, "k8s_pod_memory", "Pod memory usage").getValue()).isEqualByComparingTo("256");
+        assertThat(metrics).hasSize(4);
+        assertThat(metric(metrics, "k8s_pod_cpu", "Pod CPU usage", "default/order-service-abc").getStatType())
+                .isEqualTo("avg");
+        assertThat(metric(metrics, "k8s_pod_cpu", "Pod CPU usage", "default/order-service-abc").getUnit())
+                .isEqualTo("cores");
+        assertThat(metric(metrics, "k8s_pod_cpu", "Pod CPU usage", "default/order-service-abc").getValue())
+                .isEqualByComparingTo("0.35");
+        assertThat(metric(metrics, "k8s_pod_cpu", "Pod CPU usage", "default/order-service-def").getValue())
+                .isEqualByComparingTo("0.42");
+        assertThat(metric(metrics, "k8s_pod_memory", "Pod memory usage", "default/order-service-abc").getUnit())
+                .isEqualTo("MiB");
+        assertThat(metric(metrics, "k8s_pod_memory", "Pod memory usage", "default/order-service-abc").getValue())
+                .isEqualByComparingTo("256");
+        assertThat(metric(metrics, "k8s_pod_memory", "Pod memory usage", "default/order-service-def").getValue())
+                .isEqualByComparingTo("384");
     }
 
     private void handleQuery(HttpExchange exchange) throws IOException {
@@ -134,7 +141,52 @@ class DefaultPrometheusMetricClientTest {
                     """);
             return;
         }
-        String body = """
+        String body = responseForQuery(query, value);
+        respond(exchange, body);
+    }
+
+    private String responseForQuery(String query, BigDecimal value) {
+        if (query.contains("container_cpu_usage_seconds_total")) {
+            return """
+                    {
+                      "status": "success",
+                      "data": {
+                        "resultType": "vector",
+                        "result": [
+                          {
+                            "metric": {"namespace": "default", "pod": "order-service-abc"},
+                            "value": [1778656800, "0.35"]
+                          },
+                          {
+                            "metric": {"namespace": "default", "pod": "order-service-def"},
+                            "value": [1778656800, "0.42"]
+                          }
+                        ]
+                      }
+                    }
+                    """;
+        }
+        if (query.contains("container_memory_working_set_bytes")) {
+            return """
+                    {
+                      "status": "success",
+                      "data": {
+                        "resultType": "vector",
+                        "result": [
+                          {
+                            "metric": {"namespace": "default", "pod": "order-service-abc"},
+                            "value": [1778656800, "256"]
+                          },
+                          {
+                            "metric": {"namespace": "default", "pod": "order-service-def"},
+                            "value": [1778656800, "384"]
+                          }
+                        ]
+                      }
+                    }
+                    """;
+        }
+        return """
                 {
                   "status": "success",
                   "data": {
@@ -148,7 +200,6 @@ class DefaultPrometheusMetricClientTest {
                   }
                 }
                 """.formatted(value.toPlainString());
-        respond(exchange, body);
     }
 
     private BigDecimal valueForQuery(String query) {
@@ -182,6 +233,15 @@ class DefaultPrometheusMetricClientTest {
     private MetricSample metric(List<MetricSample> metrics, String category, String name) {
         return metrics.stream()
                 .filter(metric -> category.equals(metric.getMetricCategory()) && name.equals(metric.getMetricName()))
+                .findFirst()
+                .orElseThrow();
+    }
+
+    private MetricSample metric(List<MetricSample> metrics, String category, String name, String targetName) {
+        return metrics.stream()
+                .filter(metric -> category.equals(metric.getMetricCategory())
+                        && name.equals(metric.getMetricName())
+                        && targetName.equals(metric.getTargetName()))
                 .findFirst()
                 .orElseThrow();
     }

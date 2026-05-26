@@ -65,10 +65,9 @@ public class DefaultPrometheusMetricClient implements PrometheusMetricClient {
         String range = range(startTime, endTime);
         String queryTime = queryTime(endTime);
         for (K8sPodSelector selector : selectors) {
-            String target = selector.namespace() + "/" + selector.podRegex();
-            addAverageMetric(metrics, datasource, "k8s_pod_cpu", "Pod CPU usage", target,
+            addAverageMetrics(metrics, datasource, "k8s_pod_cpu", "Pod CPU usage",
                     podCpuAverageQuery(selector, range), "cores", queryTime);
-            addAverageMetric(metrics, datasource, "k8s_pod_memory", "Pod memory usage", target,
+            addAverageMetrics(metrics, datasource, "k8s_pod_memory", "Pod memory usage",
                     podMemoryAverageQuery(selector, range), "MiB", queryTime);
         }
         if (!selectors.isEmpty() && metrics.isEmpty()) {
@@ -131,7 +130,44 @@ public class DefaultPrometheusMetricClient implements PrometheusMetricClient {
         }
     }
 
+    private void addAverageMetrics(
+            List<MetricSample> metrics,
+            ProjectDatasource datasource,
+            String category,
+            String name,
+            String promql,
+            String unit,
+            String queryTime
+    ) {
+        try {
+            for (MetricSample sample : samples(category, name, queryResult(datasource, promql, queryTime), unit, "avg")) {
+                metrics.add(sample);
+            }
+        } catch (Exception exception) {
+            log.warn(
+                    "Prometheus metric query failed: datasourceId={}, baseUrl={}, category={}, name={}, queryTime={}, error={}, promql={}",
+                    datasource.getId(),
+                    datasource.getBaseUrl(),
+                    category,
+                    name,
+                    queryTime,
+                    exception.getMessage(),
+                    promql
+            );
+        }
+    }
+
     private BigDecimal query(ProjectDatasource datasource, String promql, String queryTime) {
+        JsonNode result = queryResult(datasource, promql, queryTime);
+        JsonNode value = result.path(0).path("value").path(1);
+        if (value.isMissingNode()) {
+            log.warn("Prometheus returned no data: datasourceId={}, baseUrl={}, queryTime={}, promql={}, result={}", datasource.getId(), datasource.getBaseUrl(), queryTime, promql, result);
+            throw new IllegalStateException("Prometheus returned no data");
+        }
+        return new BigDecimal(value.asText());
+    }
+
+    private JsonNode queryResult(ProjectDatasource datasource, String promql, String queryTime) {
         UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(datasource.getBaseUrl())
                 .path("/api/v1/query")
                 .queryParam("query", promql);
@@ -144,12 +180,12 @@ public class DefaultPrometheusMetricClient implements PrometheusMetricClient {
                 .toUri();
         log.info("Querying Prometheus metric: datasourceId={}, baseUrl={}, queryTime={}, promql={}", datasource.getId(), datasource.getBaseUrl(), queryTime, promql);
         JsonNode response = restTemplate.getForObject(uri, JsonNode.class);
-        JsonNode value = response.path("data").path("result").path(0).path("value").path(1);
-        if (value.isMissingNode()) {
+        JsonNode result = response.path("data").path("result");
+        if (!result.isArray() || result.isEmpty()) {
             log.warn("Prometheus returned no data: datasourceId={}, baseUrl={}, queryTime={}, promql={}, response={}", datasource.getId(), datasource.getBaseUrl(), queryTime, promql, response);
             throw new IllegalStateException("Prometheus returned no data");
         }
-        return new BigDecimal(value.asText());
+        return result;
     }
 
     private String queryTime(String endTime) {
@@ -233,5 +269,36 @@ public class DefaultPrometheusMetricClient implements PrometheusMetricClient {
                 .value(value)
                 .unit(unit)
                 .build();
+    }
+
+    private List<MetricSample> samples(String category, String name, JsonNode result, String unit, String statType) {
+        List<MetricSample> samples = new ArrayList<>();
+        for (JsonNode item : result) {
+            JsonNode value = item.path("value").path(1);
+            if (value.isMissingNode()) {
+                continue;
+            }
+            samples.add(sample(
+                    category,
+                    name,
+                    targetName(item.path("metric")),
+                    new BigDecimal(value.asText()),
+                    unit,
+                    statType
+            ));
+        }
+        return samples;
+    }
+
+    private String targetName(JsonNode labels) {
+        String namespace = labels.path("namespace").asText("");
+        String pod = labels.path("pod").asText("");
+        if (!namespace.isBlank() && !pod.isBlank()) {
+            return namespace + "/" + pod;
+        }
+        if (!pod.isBlank()) {
+            return pod;
+        }
+        return labels.toString();
     }
 }
