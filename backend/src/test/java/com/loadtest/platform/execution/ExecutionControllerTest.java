@@ -20,6 +20,7 @@ import com.loadtest.platform.ssh.SshCommandRunner;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -57,6 +58,22 @@ class ExecutionControllerTest {
 
     @MockBean
     private SshCommandRunner sshCommandRunner;
+
+    @BeforeEach
+    void clearActiveExecutions() {
+        List<TestExecution> activeExecutions = testExecutionMapper.selectList(new LambdaQueryWrapper<TestExecution>()
+                .in(TestExecution::getStatus, List.of("pending", "scheduled", "running")));
+        for (TestExecution execution : activeExecutions) {
+            execution.setStatus("cancelled");
+            testExecutionMapper.updateById(execution);
+        }
+        List<TestExecutionStep> activeSteps = testExecutionStepMapper.selectList(new LambdaQueryWrapper<TestExecutionStep>()
+                .eq(TestExecutionStep::getStatus, "running"));
+        for (TestExecutionStep step : activeSteps) {
+            step.setStatus("cancelled");
+            testExecutionStepMapper.updateById(step);
+        }
+    }
 
     @Test
     void createsManualExecutionAndListsIt() throws Exception {
@@ -219,6 +236,62 @@ class ExecutionControllerTest {
         assertThat(steps.get(0).getStatus()).isEqualTo("running");
         assertThat(steps.get(0).getRemotePid()).isEqualTo("9876");
         assertThat(steps.get(0).getRemoteRunDir()).contains("execution_" + executionId + "_step_1_run");
+
+        execution.setStatus("cancelled");
+        testExecutionMapper.updateById(execution);
+    }
+
+    @Test
+    void stopsRunningExecutionAndMarksItCancelled() throws Exception {
+        Long projectId = createProject();
+        createJMeterServer(projectId);
+        Long taskId = createTask(projectId);
+        Long executionId = createManualExecution(taskId);
+        when(sshCommandRunner.runWithPassword(anyString(), anyInt(), anyString(), anyString(), anyString(), any()))
+                .thenReturn(SshCommandResult.builder()
+                        .exitCode(0)
+                        .stdout("9878\n")
+                        .stderr("")
+                        .build())
+                .thenReturn(SshCommandResult.builder()
+                        .exitCode(0)
+                        .stdout("STOPPED\n")
+                        .stderr("")
+                        .build());
+
+        executionService.runOnePendingExecution();
+
+        mockMvc.perform(post("/api/executions/{executionId}/stop", executionId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("cancelled"));
+
+        TestExecution execution = testExecutionMapper.selectById(executionId);
+        assertThat(execution.getStatus()).isEqualTo("cancelled");
+        assertThat(execution.getEndedAt()).isNotBlank();
+        assertThat(execution.getErrorMessage()).contains("stopped by user");
+
+        List<TestExecutionStep> steps = testExecutionStepMapper.selectList(new LambdaQueryWrapper<TestExecutionStep>()
+                .eq(TestExecutionStep::getExecutionId, executionId));
+        assertThat(steps).hasSize(1);
+        assertThat(steps.get(0).getStatus()).isEqualTo("cancelled");
+        assertThat(steps.get(0).getEndedAt()).isNotBlank();
+
+        ArgumentCaptor<String> commandCaptor = ArgumentCaptor.forClass(String.class);
+        verify(sshCommandRunner, org.mockito.Mockito.times(2))
+                .runWithPassword(anyString(), anyInt(), anyString(), anyString(), commandCaptor.capture(), any());
+        assertThat(commandCaptor.getAllValues().get(1)).contains("kill -TERM -- -9878");
+        assertThat(commandCaptor.getAllValues().get(1)).contains("kill -KILL -- -9878");
+        assertThat(commandCaptor.getAllValues().get(1)).contains("stopped");
+    }
+
+    @Test
+    void rejectsStopWhenExecutionIsNotRunning() throws Exception {
+        Long taskId = createTask(createProject());
+        Long executionId = createManualExecution(taskId);
+
+        mockMvc.perform(post("/api/executions/{executionId}/stop", executionId))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false));
     }
 
     @Test

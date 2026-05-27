@@ -45,6 +45,11 @@ public class ExecutionController {
         return ApiResponse.ok(executionService.cancelExecution(executionId));
     }
 
+    @PostMapping("/api/executions/{executionId}/stop")
+    public ApiResponse<ExecutionResponse> stopExecution(@PathVariable Long executionId) {
+        return ApiResponse.ok(executionService.stopExecution(executionId));
+    }
+
     @DeleteMapping("/api/executions/{executionId}")
     public ApiResponse<Void> deleteExecution(@PathVariable Long executionId) {
         executionService.deleteExecution(executionId);

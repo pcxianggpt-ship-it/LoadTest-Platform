@@ -37,6 +37,11 @@ export async function cancelExecution(executionId: number) {
   return response.data.data;
 }
 
+export async function stopExecution(executionId: number) {
+  const response = await http.post<ApiResponse<TestExecution>>(`/api/executions/${executionId}/stop`);
+  return response.data.data;
+}
+
 export async function listExecutions(projectId: number) {
   const response = await http.get<ApiResponse<TestExecution[]>>(`/api/projects/${projectId}/executions`);
   return response.data.data;

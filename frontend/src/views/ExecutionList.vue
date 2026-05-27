@@ -8,6 +8,7 @@ import {
   createScheduledExecution,
   deleteExecution,
   listExecutions,
+  stopExecution,
   type TestExecution,
 } from "../api/executions";
 import { listProjects, type Project } from "../api/projects";
@@ -98,6 +99,21 @@ async function cancel(row: TestExecution) {
   await loadData();
 }
 
+async function stop(row: TestExecution) {
+  try {
+    await ElMessageBox.confirm(
+      `停止执行「${row.executionName}」会终止远程 JMeter 进程，确认继续？`,
+      "停止执行",
+      { type: "warning", confirmButtonText: "停止", cancelButtonText: "取消" }
+    );
+  } catch {
+    return;
+  }
+  await stopExecution(row.id);
+  ElMessage.success("已停止执行");
+  await loadData();
+}
+
 async function removeExecution(row: TestExecution) {
   try {
     await ElMessageBox.confirm(
@@ -131,6 +147,10 @@ async function submitResult() {
 
 function canCancel(status: string) {
   return status === "scheduled" || status === "pending";
+}
+
+function canStop(status: string) {
+  return status === "running";
 }
 
 watch(selectedProjectId, loadData);
@@ -179,6 +199,7 @@ onMounted(async () => {
       <el-table-column label="操作" width="250" fixed="right">
         <template #default="{ row }">
           <el-button v-if="canCancel(row.status)" link type="danger" @click="cancel(row)">取消</el-button>
+          <el-button v-if="canStop(row.status)" link type="danger" @click="stop(row)">停止</el-button>
           <el-button v-if="row.status === 'success'" link type="primary" @click="openResultDialog(row)">生成结果</el-button>
           <el-button link type="danger" @click="removeExecution(row)">删除</el-button>
         </template>

@@ -81,6 +81,45 @@ public class ExecutionService {
     }
 
     @Transactional
+    public ExecutionResponse stopExecution(Long executionId) {
+        TestExecution execution = getExecutionOrThrow(executionId);
+        if (!"running".equals(execution.getStatus())) {
+            throw new IllegalArgumentException("only running execution can be stopped");
+        }
+        TestExecutionStep runningStep = runningStep(executionId);
+        if (runningStep == null) {
+            throw new IllegalStateException("running execution has no running step");
+        }
+
+        JMeterServer server = getJMeterServerOrThrow(execution.getProjectId());
+        try {
+            SshCommandResult result = stopRemoteCommand(server, runningStep);
+            runningStep.setSshLog(combineLog(result));
+            if (result.getExitCode() != 0) {
+                throw new IllegalStateException("failed to stop remote JMeter process with exit code " + result.getExitCode());
+            }
+        } catch (Exception exception) {
+            throw new IllegalStateException(exception.getMessage(), exception);
+        }
+
+        String endedAt = OffsetDateTime.now().toString();
+        runningStep.setStatus("cancelled");
+        runningStep.setEndedAt(endedAt);
+        runningStep.setDurationSeconds(durationSeconds(runningStep.getStartedAt(), endedAt));
+        runningStep.setErrorMessage("Execution stopped by user");
+        runningStep.setUpdatedAt(endedAt);
+        testExecutionStepMapper.updateById(runningStep);
+
+        execution.setStatus("cancelled");
+        execution.setEndedAt(endedAt);
+        execution.setDurationSeconds(durationSeconds(execution.getStartedAt(), endedAt));
+        execution.setErrorMessage("Execution stopped by user");
+        execution.setUpdatedAt(endedAt);
+        testExecutionMapper.updateById(execution);
+        return ExecutionResponse.from(execution);
+    }
+
+    @Transactional
     public void promoteDueScheduledExecutions() {
         String now = OffsetDateTime.now().toString();
         LambdaQueryWrapper<TestExecution> wrapper = new LambdaQueryWrapper<TestExecution>()
@@ -323,6 +362,20 @@ public class ExecutionService {
         );
     }
 
+    private SshCommandResult stopRemoteCommand(JMeterServer server, TestExecutionStep step) throws Exception {
+        if (!"password".equals(server.getSshAuthType())) {
+            throw new IllegalArgumentException("only password ssh auth is supported in MVP");
+        }
+        return sshCommandRunner.runWithPassword(
+                server.getHost(),
+                server.getSshPort(),
+                server.getSshUsername(),
+                server.getSshPasswordEncrypted(),
+                stopCommand(step),
+                Duration.ofSeconds(30)
+        );
+    }
+
     private String combineLog(SshCommandResult result) {
         return "stdout:\n" + nullToEmpty(result.getStdout()) + "\nstderr:\n" + nullToEmpty(result.getStderr());
     }
@@ -347,7 +400,7 @@ public class ExecutionService {
                 + "; echo $code > " + shellQuote(exitCodePath)
                 + "; touch " + shellQuote(donePath);
         return "mkdir -p " + shellQuote(runDir)
-                + " && (nohup sh -c " + shellQuote(script)
+                + " && (setsid nohup sh -c " + shellQuote(script)
                 + " >/dev/null 2>&1 & echo $!)";
     }
 
@@ -365,6 +418,20 @@ public class ExecutionService {
                 + "elif kill -0 " + shellQuote(pid) + " 2>/dev/null; then "
                 + "echo RUNNING; "
                 + "else echo LOST; fi";
+    }
+
+    private String stopCommand(TestExecutionStep step) {
+        String pid = step.getRemotePid();
+        String stoppedPath = joinPath(step.getRemoteRunDir(), "stopped");
+        return "if kill -0 " + shellQuote(pid) + " 2>/dev/null; then "
+                + "kill -TERM -- -" + pid + " 2>/dev/null || kill -TERM " + shellQuote(pid) + " 2>/dev/null || true; "
+                + "sleep 2; "
+                + "if kill -0 " + shellQuote(pid) + " 2>/dev/null; then "
+                + "kill -KILL -- -" + pid + " 2>/dev/null || kill -KILL " + shellQuote(pid) + " 2>/dev/null || true; "
+                + "fi; "
+                + "touch " + shellQuote(stoppedPath) + "; "
+                + "echo STOPPED; "
+                + "else touch " + shellQuote(stoppedPath) + "; echo NOT_RUNNING; fi";
     }
 
     private String firstLine(String value) {
