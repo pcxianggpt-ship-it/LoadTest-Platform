@@ -68,7 +68,7 @@ async function loadTask() {
     form.jmxFile = step?.jmxFile || "";
     form.threads = step?.threads || 100;
     form.durationSeconds = step?.durationSeconds || 600;
-    form.rampUpSeconds = step?.rampUpSeconds || 60;
+    form.rampUpSeconds = step?.rampUpSeconds ?? 60;
     form.saveJtl = step?.saveJtl || false;
     form.jmeterArgsJson = step?.jmeterArgsJson || "";
   } finally {
