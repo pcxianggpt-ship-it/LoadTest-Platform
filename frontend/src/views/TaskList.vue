@@ -16,6 +16,34 @@ const selectedProjectId = ref<number>();
 
 const selectedProject = computed(() => projects.value.find((project) => project.id === selectedProjectId.value));
 
+function compareText(left?: string, right?: string) {
+  return (left || "").localeCompare(right || "", "zh-CN", { numeric: true, sensitivity: "base" });
+}
+
+function firstStepThreads(task: TestTask) {
+  return task.steps?.[0]?.threads || 0;
+}
+
+function compareTaskNameThenThreads(left: TestTask, right: TestTask) {
+  const nameResult = compareText(left.name, right.name);
+  if (nameResult !== 0) {
+    return nameResult;
+  }
+  return firstStepThreads(left) - firstStepThreads(right);
+}
+
+function compareTaskJmx(left: TestTask, right: TestTask) {
+  return compareText(left.steps?.[0]?.jmxFile, right.steps?.[0]?.jmxFile);
+}
+
+function compareTaskThreads(left: TestTask, right: TestTask) {
+  return firstStepThreads(left) - firstStepThreads(right);
+}
+
+function compareTaskDuration(left: TestTask, right: TestTask) {
+  return (left.steps?.[0]?.durationSeconds || 0) - (right.steps?.[0]?.durationSeconds || 0);
+}
+
 async function loadProjects() {
   projects.value = await listProjects();
   const queryProjectId = Number(route.query.projectId);
@@ -88,21 +116,21 @@ onMounted(async () => {
       </div>
     </div>
 
-    <el-table :data="tasks" border stripe>
-      <el-table-column prop="name" label="任务名称" min-width="180" />
-      <el-table-column label="状态" width="110">
+    <el-table :data="tasks" border stripe :default-sort="{ prop: 'name', order: 'ascending' }">
+      <el-table-column prop="name" label="任务名称" min-width="180" sortable :sort-method="compareTaskNameThenThreads" />
+      <el-table-column prop="status" label="状态" width="110" sortable>
         <template #default="{ row }"><StatusTag :status="row.status" /></template>
       </el-table-column>
-      <el-table-column label="JMX" min-width="160">
+      <el-table-column label="JMX" min-width="160" sortable :sort-method="compareTaskJmx">
         <template #default="{ row }">{{ row.steps?.[0]?.jmxFile || "-" }}</template>
       </el-table-column>
-      <el-table-column label="并发" width="90">
+      <el-table-column label="并发" width="90" sortable :sort-method="compareTaskThreads">
         <template #default="{ row }">{{ row.steps?.[0]?.threads || "-" }}</template>
       </el-table-column>
-      <el-table-column label="持续时间" width="120">
+      <el-table-column label="持续时间" width="120" sortable :sort-method="compareTaskDuration">
         <template #default="{ row }">{{ row.steps?.[0]?.durationSeconds || "-" }} 秒</template>
       </el-table-column>
-      <el-table-column label="更新时间" min-width="200">
+      <el-table-column prop="updatedAt" label="更新时间" min-width="200" sortable>
         <template #default="{ row }">{{ formatDisplayDateTime(row.updatedAt) }}</template>
       </el-table-column>
       <el-table-column label="操作" width="190" fixed="right">

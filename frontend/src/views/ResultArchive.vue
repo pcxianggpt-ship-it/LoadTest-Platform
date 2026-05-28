@@ -77,18 +77,18 @@ onMounted(async () => {
       </el-select>
     </div>
 
-    <el-table :data="results" border stripe>
-      <el-table-column prop="name" label="结果名称" min-width="200" />
-      <el-table-column label="状态" width="130">
+    <el-table :data="results" border stripe :default-sort="{ prop: 'createdAt', order: 'descending' }">
+      <el-table-column prop="name" label="结果名称" min-width="200" sortable />
+      <el-table-column prop="status" label="状态" width="130" sortable>
         <template #default="{ row }"><StatusTag :status="row.status" /></template>
       </el-table-column>
-      <el-table-column label="开始时间" min-width="200">
+      <el-table-column prop="timeRangeStart" label="开始时间" min-width="200" sortable>
         <template #default="{ row }">{{ formatDisplayDateTime(row.timeRangeStart) }}</template>
       </el-table-column>
-      <el-table-column label="结束时间" min-width="200">
+      <el-table-column prop="timeRangeEnd" label="结束时间" min-width="200" sortable>
         <template #default="{ row }">{{ formatDisplayDateTime(row.timeRangeEnd) }}</template>
       </el-table-column>
-      <el-table-column label="归档时间" min-width="200">
+      <el-table-column prop="createdAt" label="归档时间" min-width="200" sortable>
         <template #default="{ row }">{{ formatDisplayDateTime(row.createdAt) }}</template>
       </el-table-column>
       <el-table-column label="操作" width="230" fixed="right">

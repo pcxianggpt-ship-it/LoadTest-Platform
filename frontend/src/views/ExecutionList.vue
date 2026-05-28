@@ -32,6 +32,13 @@ const activeExecution = ref<TestExecution>();
 const resultForm = reactive({ name: "" });
 const scheduledAt = ref<Date>();
 
+const executionRows = computed(() =>
+  executions.value.map((item) => ({
+    ...item,
+    sortTime: item.startedAt || item.scheduledAt || item.createdAt,
+  }))
+);
+
 const filteredTasks = computed(() => {
   const keyword = taskSearchKeyword.value.trim().toLowerCase();
   if (!keyword) {
@@ -229,19 +236,19 @@ onMounted(async () => {
       <el-button @click="openScheduleDialog">定时执行</el-button>
     </div>
 
-    <el-table :data="executions" border stripe>
-      <el-table-column prop="executionName" label="执行名称" min-width="240" />
-      <el-table-column prop="triggerType" label="触发方式" width="110" />
-      <el-table-column label="状态" width="120">
+    <el-table :data="executionRows" border stripe :default-sort="{ prop: 'sortTime', order: 'descending' }">
+      <el-table-column prop="executionName" label="执行名称" min-width="240" sortable />
+      <el-table-column prop="triggerType" label="触发方式" width="110" sortable />
+      <el-table-column prop="status" label="状态" width="120" sortable>
         <template #default="{ row }"><StatusTag :status="row.status" /></template>
       </el-table-column>
-      <el-table-column label="计划时间" min-width="200">
+      <el-table-column prop="scheduledAt" label="计划时间" min-width="200" sortable>
         <template #default="{ row }">{{ formatDisplayDateTime(row.scheduledAt) }}</template>
       </el-table-column>
-      <el-table-column label="开始时间" min-width="200">
+      <el-table-column prop="sortTime" label="开始时间" min-width="200" sortable>
         <template #default="{ row }">{{ formatDisplayDateTime(row.startedAt) }}</template>
       </el-table-column>
-      <el-table-column label="结束时间" min-width="200">
+      <el-table-column prop="endedAt" label="结束时间" min-width="200" sortable>
         <template #default="{ row }">{{ formatDisplayDateTime(row.endedAt) }}</template>
       </el-table-column>
       <el-table-column label="操作" width="250" fixed="right">
