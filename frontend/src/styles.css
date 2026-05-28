@@ -135,11 +135,34 @@ body {
 }
 
 .task-select {
-  width: 280px;
+  width: 360px;
 }
 
 .project-select {
   width: 260px;
+}
+
+.task-option-title {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  line-height: 1.35;
+}
+
+.task-option-title span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.task-option-meta {
+  overflow: hidden;
+  color: #607086;
+  font-size: 12px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .two-column {

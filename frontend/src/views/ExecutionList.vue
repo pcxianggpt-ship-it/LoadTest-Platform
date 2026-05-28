@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ElMessage, ElMessageBox } from "element-plus";
-import { onMounted, reactive, ref, watch } from "vue";
+import { computed, onMounted, reactive, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import {
   cancelExecution,
@@ -25,11 +25,45 @@ const executions = ref<TestExecution[]>([]);
 const tasks = ref<TestTask[]>([]);
 const selectedProjectId = ref<number>();
 const selectedTaskId = ref<number>();
+const taskSearchKeyword = ref("");
 const resultDialogVisible = ref(false);
 const scheduleDialogVisible = ref(false);
 const activeExecution = ref<TestExecution>();
 const resultForm = reactive({ name: "" });
 const scheduledAt = ref<Date>();
+
+const filteredTasks = computed(() => {
+  const keyword = taskSearchKeyword.value.trim().toLowerCase();
+  if (!keyword) {
+    return tasks.value;
+  }
+  return tasks.value.filter((item) => taskSearchText(item).includes(keyword));
+});
+
+function taskSearchText(item: TestTask) {
+  return [
+    item.name,
+    item.description,
+    item.status,
+    item.steps?.[0]?.stepName,
+    item.steps?.[0]?.jmxFile,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+}
+
+function filterTasks(query: string) {
+  taskSearchKeyword.value = query;
+}
+
+function taskMeta(item: TestTask) {
+  const step = item.steps?.[0];
+  if (!step) {
+    return "暂无步骤配置";
+  }
+  return `${step.jmxFile} · ${step.threads} 并发 · ${step.durationSeconds}s`;
+}
 
 async function loadProjects() {
   projects.value = await listProjects();
@@ -52,6 +86,7 @@ async function loadData() {
     ]);
     tasks.value = taskData;
     executions.value = executionData;
+    taskSearchKeyword.value = "";
     const routeTaskId = Number(route.query.taskId);
     selectedTaskId.value = routeTaskId || taskData[0]?.id;
   } finally {
@@ -174,8 +209,21 @@ onMounted(async () => {
     </div>
 
     <div class="action-strip">
-      <el-select v-model="selectedTaskId" placeholder="选择任务" class="task-select">
-        <el-option v-for="task in tasks" :key="task.id" :label="task.name" :value="task.id" />
+      <el-select
+        v-model="selectedTaskId"
+        placeholder="搜索或选择计划"
+        class="task-select"
+        filterable
+        :filter-method="filterTasks"
+        clearable
+      >
+        <el-option v-for="task in filteredTasks" :key="task.id" :label="task.name" :value="task.id">
+          <div class="task-option-title">
+            <span>{{ task.name }}</span>
+            <el-tag size="small" :type="task.status === 'enabled' ? 'success' : 'info'">{{ task.status }}</el-tag>
+          </div>
+          <div class="task-option-meta">{{ taskMeta(task) }}</div>
+        </el-option>
       </el-select>
       <el-button type="primary" @click="runNow">立即执行</el-button>
       <el-button @click="openScheduleDialog">定时执行</el-button>
