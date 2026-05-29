@@ -39,6 +39,11 @@ public class DeletionService {
     private final TestResultMapper testResultMapper;
     private final TestResultMetricMapper testResultMetricMapper;
     private final TestReportMapper testReportMapper;
+    private final BusinessDatabaseMapper businessDatabaseMapper;
+    private final CleanupPlanMapper cleanupPlanMapper;
+    private final CleanupPlanSqlMapper cleanupPlanSqlMapper;
+    private final CleanupRunMapper cleanupRunMapper;
+    private final CleanupRunStepMapper cleanupRunStepMapper;
 
     @Transactional
     public void deleteProject(Long projectId) {
@@ -52,6 +57,11 @@ public class DeletionService {
         for (TestTask task : tasksByProject(projectId)) {
             deleteTask(task.getId());
         }
+        for (CleanupPlan plan : cleanupPlansByProject(projectId)) {
+            deleteCleanupPlan(plan.getId());
+        }
+        businessDatabaseMapper.delete(new LambdaQueryWrapper<BusinessDatabase>()
+                .eq(BusinessDatabase::getProjectId, projectId));
         jMeterServerMapper.delete(new LambdaQueryWrapper<JMeterServer>()
                 .eq(JMeterServer::getProjectId, projectId));
         projectDatasourceMapper.delete(new LambdaQueryWrapper<ProjectDatasource>()
@@ -74,6 +84,7 @@ public class DeletionService {
         for (TestResult result : resultsByExecution(executionId)) {
             deleteResult(result.getId());
         }
+        deleteCleanupRunsByExecution(executionId);
         testExecutionStepMapper.delete(new LambdaQueryWrapper<TestExecutionStep>()
                 .eq(TestExecutionStep::getExecutionId, executionId));
         testExecutionMapper.deleteById(executionId);
@@ -90,6 +101,20 @@ public class DeletionService {
     @Transactional
     public void deleteReport(Long reportId) {
         testReportMapper.deleteById(reportId);
+    }
+
+    private void deleteCleanupPlan(Long planId) {
+        cleanupPlanSqlMapper.delete(new LambdaQueryWrapper<CleanupPlanSql>()
+                .eq(CleanupPlanSql::getCleanupPlanId, planId));
+        cleanupPlanMapper.deleteById(planId);
+    }
+
+    private void deleteCleanupRunsByExecution(Long executionId) {
+        for (CleanupRun run : cleanupRunsByExecution(executionId)) {
+            cleanupRunStepMapper.delete(new LambdaQueryWrapper<CleanupRunStep>()
+                    .eq(CleanupRunStep::getCleanupRunId, run.getId()));
+            cleanupRunMapper.deleteById(run.getId());
+        }
     }
 
     private void deleteReportsByProject(Long projectId) {
@@ -129,5 +154,15 @@ public class DeletionService {
     private List<TestResult> resultsByExecution(Long executionId) {
         return testResultMapper.selectList(new LambdaQueryWrapper<TestResult>()
                 .eq(TestResult::getExecutionId, executionId));
+    }
+
+    private List<CleanupPlan> cleanupPlansByProject(Long projectId) {
+        return cleanupPlanMapper.selectList(new LambdaQueryWrapper<CleanupPlan>()
+                .eq(CleanupPlan::getProjectId, projectId));
+    }
+
+    private List<CleanupRun> cleanupRunsByExecution(Long executionId) {
+        return cleanupRunMapper.selectList(new LambdaQueryWrapper<CleanupRun>()
+                .eq(CleanupRun::getExecutionId, executionId));
     }
 }

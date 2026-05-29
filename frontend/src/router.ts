@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from "vue-router";
+import CleanupManager from "./views/CleanupManager.vue";
 import ExecutionList from "./views/ExecutionList.vue";
 import ProjectDetail from "./views/ProjectDetail.vue";
 import ProjectList from "./views/ProjectList.vue";
@@ -41,6 +42,11 @@ export const router = createRouter({
       path: "/tasks/:taskId/edit",
       name: "task-editor-edit",
       component: TaskEditor,
+    },
+    {
+      path: "/cleanup",
+      name: "cleanup-manager",
+      component: CleanupManager,
     },
     {
       path: "/projects/:projectId/executions",

@@ -7,6 +7,9 @@ const activeMenu = computed(() => {
   if (route.path.startsWith("/tasks")) {
     return "/tasks";
   }
+  if (route.path.startsWith("/cleanup")) {
+    return "/cleanup";
+  }
   if (route.path.startsWith("/executions") || route.path.includes("/executions")) {
     return "/executions";
   }
@@ -36,6 +39,9 @@ const activeMenu = computed(() => {
         </el-menu-item>
         <el-menu-item index="/tasks">
           <span>任务管理</span>
+        </el-menu-item>
+        <el-menu-item index="/cleanup">
+          <span>数据清理</span>
         </el-menu-item>
         <el-menu-item index="/executions">
           <span>执行管理</span>

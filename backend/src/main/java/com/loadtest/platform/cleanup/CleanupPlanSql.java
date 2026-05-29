@@ -1,4 +1,4 @@
-package com.loadtest.platform.task;
+package com.loadtest.platform.cleanup;
 
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
@@ -6,17 +6,15 @@ import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
 
 @Data
-@TableName("test_tasks")
-public class TestTask {
+@TableName("cleanup_plan_sqls")
+public class CleanupPlanSql {
 
     @TableId(type = IdType.AUTO)
     private Long id;
-    private Long projectId;
-    private String name;
-    private String description;
-    private Boolean defaultSaveJtl;
     private Long cleanupPlanId;
-    private String status;
+    private Integer stepOrder;
+    private String sqlText;
+    private Boolean enabled;
     private String createdAt;
     private String updatedAt;
 }

@@ -11,10 +11,16 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verify;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.loadtest.platform.cleanup.CleanupRun;
+import com.loadtest.platform.cleanup.CleanupRunMapper;
+import com.loadtest.platform.cleanup.CleanupRunStep;
+import com.loadtest.platform.cleanup.CleanupRunStepMapper;
+import com.loadtest.platform.cleanup.CleanupSqlExecutor;
 import com.loadtest.platform.ssh.SshCommandResult;
 import com.loadtest.platform.ssh.SshCommandRunner;
 import java.nio.file.Files;
@@ -56,8 +62,17 @@ class ExecutionControllerTest {
     @Autowired
     private TestExecutionStepMapper testExecutionStepMapper;
 
+    @Autowired
+    private CleanupRunStepMapper cleanupRunStepMapper;
+
+    @Autowired
+    private CleanupRunMapper cleanupRunMapper;
+
     @MockBean
     private SshCommandRunner sshCommandRunner;
+
+    @MockBean
+    private CleanupSqlExecutor cleanupSqlExecutor;
 
     @BeforeEach
     void clearActiveExecutions() {
@@ -85,7 +100,8 @@ class ExecutionControllerTest {
                 .andExpect(jsonPath("$.data.projectId").value(projectId))
                 .andExpect(jsonPath("$.data.taskId").value(taskId))
                 .andExpect(jsonPath("$.data.triggerType").value("manual"))
-                .andExpect(jsonPath("$.data.status").value("pending"));
+                .andExpect(jsonPath("$.data.status").value("pending"))
+                .andExpect(jsonPath("$.data.cleanupStatus").value("none"));
 
         mockMvc.perform(get("/api/projects/{projectId}/executions", projectId))
                 .andExpect(status().isOk())
@@ -161,6 +177,7 @@ class ExecutionControllerTest {
 
         TestExecution execution = testExecutionMapper.selectById(executionId);
         assertThat(execution.getStatus()).isEqualTo("success");
+        assertThat(execution.getCleanupStatus()).isEqualTo("skipped");
         assertThat(execution.getStartedAt()).isNotBlank();
         assertThat(execution.getEndedAt()).isNotBlank();
         assertThat(execution.getDurationSeconds()).isNotNull();
@@ -171,6 +188,98 @@ class ExecutionControllerTest {
         assertThat(steps.get(0).getCommand()).contains("order_query.jmx");
         assertThat(steps.get(0).getJtlPath()).contains("execution_" + executionId + "_step_1.jtl");
         assertThat(steps.get(0).getSshLog()).contains("jmeter done");
+    }
+
+    @Test
+    void runsCleanupAfterSuccessfulExecution() throws Exception {
+        Long projectId = createProject();
+        Long databaseId = createBusinessDatabase(projectId);
+        Long cleanupPlanId = createCleanupPlan(projectId, databaseId);
+        createJMeterServer(projectId);
+        Long taskId = createTask(projectId, true, cleanupPlanId);
+        Long executionId = createManualExecution(taskId);
+        when(sshCommandRunner.runWithPassword(anyString(), anyInt(), anyString(), anyString(), anyString(), any()))
+                .thenReturn(SshCommandResult.builder()
+                        .exitCode(0)
+                        .stdout("4244\n")
+                        .stderr("")
+                        .build())
+                .thenReturn(SshCommandResult.builder()
+                        .exitCode(0)
+                        .stdout("DONE\n0\nstdout:\njmeter done\nstderr:\n")
+                        .stderr("")
+                        .build());
+        when(cleanupSqlExecutor.execute(any(), anyString())).thenReturn(2);
+
+        executionService.runOnePendingExecution();
+        executionService.checkRunningExecutions();
+
+        TestExecution execution = testExecutionMapper.selectById(executionId);
+        assertThat(execution.getStatus()).isEqualTo("success");
+        assertThat(execution.getCleanupStatus()).isEqualTo("success");
+        assertThat(execution.getCleanupStartedAt()).isNotBlank();
+        assertThat(execution.getCleanupEndedAt()).isNotBlank();
+
+        ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+        verify(cleanupSqlExecutor, times(2)).execute(any(), sqlCaptor.capture());
+        assertThat(sqlCaptor.getAllValues()).containsExactly(
+                "delete from t_order where test_flag = 1",
+                "update account set amount = 100 where user_id = 1");
+
+        List<CleanupRunStep> cleanupSteps = cleanupStepsByExecution(executionId);
+        assertThat(cleanupSteps).hasSize(2);
+        assertThat(cleanupSteps).allSatisfy(step -> {
+            assertThat(step.getStatus()).isEqualTo("success");
+            assertThat(step.getAffectedRows()).isEqualTo(2);
+        });
+    }
+
+    @Test
+    void stopsCleanupOnFailureAndRetriesIt() throws Exception {
+        Long projectId = createProject();
+        Long databaseId = createBusinessDatabase(projectId);
+        Long cleanupPlanId = createCleanupPlan(projectId, databaseId);
+        createJMeterServer(projectId);
+        Long taskId = createTask(projectId, true, cleanupPlanId);
+        Long executionId = createManualExecution(taskId);
+        when(sshCommandRunner.runWithPassword(anyString(), anyInt(), anyString(), anyString(), anyString(), any()))
+                .thenReturn(SshCommandResult.builder()
+                        .exitCode(0)
+                        .stdout("4245\n")
+                        .stderr("")
+                        .build())
+                .thenReturn(SshCommandResult.builder()
+                        .exitCode(0)
+                        .stdout("DONE\n0\nstdout:\njmeter done\nstderr:\n")
+                        .stderr("")
+                        .build());
+        when(cleanupSqlExecutor.execute(any(), anyString()))
+                .thenReturn(1)
+                .thenThrow(new RuntimeException("cleanup boom"))
+                .thenReturn(1)
+                .thenReturn(1);
+
+        executionService.runOnePendingExecution();
+        executionService.checkRunningExecutions();
+
+        TestExecution failedCleanup = testExecutionMapper.selectById(executionId);
+        assertThat(failedCleanup.getStatus()).isEqualTo("success");
+        assertThat(failedCleanup.getCleanupStatus()).isEqualTo("failed");
+        assertThat(failedCleanup.getCleanupErrorMessage()).contains("cleanup boom");
+
+        List<CleanupRunStep> failedSteps = cleanupStepsByExecution(executionId);
+        assertThat(failedSteps).hasSize(2);
+        assertThat(failedSteps.get(0).getStatus()).isEqualTo("success");
+        assertThat(failedSteps.get(1).getStatus()).isEqualTo("failed");
+
+        mockMvc.perform(post("/api/executions/{executionId}/cleanup/retry", executionId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("success"))
+                .andExpect(jsonPath("$.data.cleanupStatus").value("success"));
+
+        TestExecution retriedCleanup = testExecutionMapper.selectById(executionId);
+        assertThat(retriedCleanup.getCleanupStatus()).isEqualTo("success");
+        assertThat(cleanupStepsByExecution(executionId)).hasSize(4);
     }
 
     @Test
@@ -341,9 +450,14 @@ class ExecutionControllerTest {
     }
 
     private Long createTask(Long projectId, boolean saveJtl) throws Exception {
+        return createTask(projectId, saveJtl, null);
+    }
+
+    private Long createTask(Long projectId, boolean saveJtl, Long cleanupPlanId) throws Exception {
         String body = """
                 {
                   "name": "订单查询压测",
+                  %s
                   "step": {
                     "stepName": "订单查询",
                     "jmxFile": "order_query.jmx",
@@ -353,7 +467,7 @@ class ExecutionControllerTest {
                     "saveJtl": %s
                   }
                 }
-                """.formatted(saveJtl);
+                """.formatted(cleanupPlanId == null ? "" : "\"cleanupPlanId\": " + cleanupPlanId + ",", saveJtl);
         return extractId(mockMvc.perform(post("/api/projects/{projectId}/tasks", projectId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
@@ -390,6 +504,63 @@ class ExecutionControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isOk());
+    }
+
+    private Long createBusinessDatabase(Long projectId) throws Exception {
+        String body = """
+                {
+                  "name": "order-mysql",
+                  "databaseType": "mysql",
+                  "jdbcUrl": "jdbc:mysql://10.0.0.8:3306/orderdb",
+                  "username": "tester",
+                  "passwordEncrypted": "secret",
+                  "status": "active"
+                }
+                """;
+        return extractId(mockMvc.perform(post("/api/projects/{projectId}/business-databases", projectId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString());
+    }
+
+    private Long createCleanupPlan(Long projectId, Long databaseId) throws Exception {
+        String body = """
+                {
+                  "name": "订单数据清理",
+                  "description": "删除压测订单并恢复金额",
+                  "businessDatabaseId": %d,
+                  "enabled": true,
+                  "sqlStatements": [
+                    "delete from t_order where test_flag = 1",
+                    "update account set amount = 100 where user_id = 1"
+                  ]
+                }
+                """.formatted(databaseId);
+        return extractId(mockMvc.perform(post("/api/projects/{projectId}/cleanup-plans", projectId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString());
+    }
+
+    private List<CleanupRunStep> cleanupStepsByExecution(Long executionId) {
+        List<Long> runIds = cleanupRunMapper.selectList(new LambdaQueryWrapper<CleanupRun>()
+                        .eq(CleanupRun::getExecutionId, executionId)
+                        .orderByAsc(CleanupRun::getId))
+                .stream()
+                .map(CleanupRun::getId)
+                .toList();
+        if (runIds.isEmpty()) {
+            return List.of();
+        }
+        return cleanupRunStepMapper.selectList(new LambdaQueryWrapper<CleanupRunStep>()
+                .in(CleanupRunStep::getCleanupRunId, runIds)
+                .orderByAsc(CleanupRunStep::getId));
     }
 
     private Long extractId(String response) {

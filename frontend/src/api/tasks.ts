@@ -20,6 +20,7 @@ export interface TestTask {
   name: string;
   description?: string;
   defaultSaveJtl: boolean;
+  cleanupPlanId?: number;
   status: string;
   createdAt: string;
   updatedAt: string;
@@ -30,6 +31,7 @@ export interface TaskPayload {
   name: string;
   description?: string;
   defaultSaveJtl?: boolean;
+  cleanupPlanId?: number;
   step: {
     stepName: string;
     jmxFile: string;

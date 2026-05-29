@@ -1,6 +1,7 @@
 package com.loadtest.platform.execution;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.loadtest.platform.cleanup.CleanupService;
 import com.loadtest.platform.cleanup.DeletionService;
 import com.loadtest.platform.common.NotFoundException;
 import com.loadtest.platform.jmeter.JMeterCommand;
@@ -32,6 +33,7 @@ public class ExecutionService {
     private final JMeterCommandBuilder jMeterCommandBuilder;
     private final SshCommandRunner sshCommandRunner;
     private final DeletionService deletionService;
+    private final CleanupService cleanupService;
 
     @Transactional
     public ExecutionResponse createManualExecution(Long taskId) {
@@ -469,6 +471,9 @@ public class ExecutionService {
         execution.setErrorMessage(errorMessage);
         execution.setUpdatedAt(endedAt);
         testExecutionMapper.updateById(execution);
+        if ("success".equals(status)) {
+            cleanupService.runAfterExecution(execution.getId());
+        }
     }
 
     private Integer durationSeconds(String startedAt, String endedAt) {
@@ -494,6 +499,7 @@ public class ExecutionService {
         execution.setTriggerType(triggerType);
         execution.setScheduledAt(scheduledAt);
         execution.setStatus(status);
+        execution.setCleanupStatus("none");
         execution.setCreatedAt(now);
         execution.setUpdatedAt(now);
         return execution;

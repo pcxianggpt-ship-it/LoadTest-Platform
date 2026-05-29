@@ -19,6 +19,10 @@ public class ExecutionResponse {
     private Integer durationSeconds;
     private Integer currentStepOrder;
     private String errorMessage;
+    private String cleanupStatus;
+    private String cleanupStartedAt;
+    private String cleanupEndedAt;
+    private String cleanupErrorMessage;
     private String createdBy;
     private String createdAt;
     private String updatedAt;
@@ -37,6 +41,10 @@ public class ExecutionResponse {
                 .durationSeconds(execution.getDurationSeconds())
                 .currentStepOrder(execution.getCurrentStepOrder())
                 .errorMessage(execution.getErrorMessage())
+                .cleanupStatus(execution.getCleanupStatus())
+                .cleanupStartedAt(execution.getCleanupStartedAt())
+                .cleanupEndedAt(execution.getCleanupEndedAt())
+                .cleanupErrorMessage(execution.getCleanupErrorMessage())
                 .createdBy(execution.getCreatedBy())
                 .createdAt(execution.getCreatedAt())
                 .updatedAt(execution.getUpdatedAt())

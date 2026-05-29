@@ -77,6 +77,56 @@ class TestTaskControllerTest {
     }
 
     @Test
+    void createsAndUpdatesTaskWithCleanupPlan() throws Exception {
+        Long projectId = createProject();
+        Long databaseId = createBusinessDatabase(projectId);
+        Long cleanupPlanId = createCleanupPlan(projectId, databaseId);
+        String body = """
+                {
+                  "name": "订单查询压测",
+                  "cleanupPlanId": %d,
+                  "step": {
+                    "stepName": "订单查询",
+                    "jmxFile": "order_query.jmx",
+                    "threads": 100,
+                    "durationSeconds": 600,
+                    "rampUpSeconds": 60
+                  }
+                }
+                """.formatted(cleanupPlanId);
+
+        Long taskId = extractId(mockMvc.perform(post("/api/projects/{projectId}/tasks", projectId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.cleanupPlanId").value(cleanupPlanId))
+                .andReturn()
+                .getResponse()
+                .getContentAsString());
+
+        String updateBody = """
+                {
+                  "name": "订单查询压测-不清理",
+                  "cleanupPlanId": %d,
+                  "step": {
+                    "stepName": "订单查询",
+                    "jmxFile": "checkout.jmx",
+                    "threads": 100,
+                    "durationSeconds": 600,
+                    "rampUpSeconds": 60
+                  }
+                }
+                """.formatted(cleanupPlanId);
+
+        mockMvc.perform(put("/api/tasks/{taskId}", taskId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                .content(updateBody))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.cleanupPlanId").value(cleanupPlanId));
+    }
+
+
+    @Test
     void rejectsInvalidStepValues() throws Exception {
         Long projectId = createProject();
         String body = """
@@ -216,6 +266,47 @@ class TestTaskControllerTest {
                 .getResponse()
                 .getContentAsString();
         return extractId(response);
+    }
+
+    private Long createBusinessDatabase(Long projectId) throws Exception {
+        String body = """
+                {
+                  "name": "order-mysql",
+                  "databaseType": "mysql",
+                  "jdbcUrl": "jdbc:mysql://10.0.0.8:3306/orderdb",
+                  "username": "tester",
+                  "passwordEncrypted": "secret",
+                  "status": "active"
+                }
+                """;
+        return extractId(mockMvc.perform(post("/api/projects/{projectId}/business-databases", projectId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString());
+    }
+
+    private Long createCleanupPlan(Long projectId, Long databaseId) throws Exception {
+        String body = """
+                {
+                  "name": "订单数据清理",
+                  "description": "删除压测订单并恢复金额",
+                  "businessDatabaseId": %d,
+                  "enabled": true,
+                  "sqlStatements": [
+                    "delete from t_order where test_flag = 1"
+                  ]
+                }
+                """.formatted(databaseId);
+        return extractId(mockMvc.perform(post("/api/projects/{projectId}/cleanup-plans", projectId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString());
     }
 
     private Long extractId(String response) {

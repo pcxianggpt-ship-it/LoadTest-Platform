@@ -13,6 +13,7 @@ public class TestTaskResponse {
     private String name;
     private String description;
     private Boolean defaultSaveJtl;
+    private Long cleanupPlanId;
     private String status;
     private String createdAt;
     private String updatedAt;
@@ -25,6 +26,7 @@ public class TestTaskResponse {
                 .name(task.getName())
                 .description(task.getDescription())
                 .defaultSaveJtl(task.getDefaultSaveJtl())
+                .cleanupPlanId(task.getCleanupPlanId())
                 .status(task.getStatus())
                 .createdAt(task.getCreatedAt())
                 .updatedAt(task.getUpdatedAt())

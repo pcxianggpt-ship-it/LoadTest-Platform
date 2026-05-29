@@ -23,6 +23,10 @@ public class TestExecution {
     private Integer currentStepOrder;
     private String sshLog;
     private String errorMessage;
+    private String cleanupStatus;
+    private String cleanupStartedAt;
+    private String cleanupEndedAt;
+    private String cleanupErrorMessage;
     private String createdBy;
     private String createdAt;
     private String updatedAt;

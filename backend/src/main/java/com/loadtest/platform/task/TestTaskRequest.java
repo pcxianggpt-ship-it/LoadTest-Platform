@@ -16,6 +16,7 @@ public class TestTaskRequest {
 
     private String description;
     private Boolean defaultSaveJtl = false;
+    private Long cleanupPlanId;
 
     @Valid
     @NotNull

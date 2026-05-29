@@ -5,6 +5,9 @@ const props = defineProps<{
 
 const statusMap: Record<string, { label: string; type: "success" | "warning" | "danger" | "info" | "primary" }> = {
   active: { label: "启用", type: "success" },
+  inactive: { label: "停用", type: "info" },
+  none: { label: "未清理", type: "info" },
+  skipped: { label: "已跳过", type: "info" },
   pending: { label: "等待中", type: "info" },
   scheduled: { label: "已定时", type: "primary" },
   running: { label: "运行中", type: "warning" },

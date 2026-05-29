@@ -28,6 +28,7 @@ public class TestTaskService {
         task.setName(request.getName());
         task.setDescription(request.getDescription());
         task.setDefaultSaveJtl(Boolean.TRUE.equals(request.getDefaultSaveJtl()));
+        task.setCleanupPlanId(request.getCleanupPlanId());
         task.setStatus("active");
         task.setCreatedAt(now);
         task.setUpdatedAt(now);
@@ -82,6 +83,7 @@ public class TestTaskService {
         task.setName(request.getName());
         task.setDescription(request.getDescription());
         task.setDefaultSaveJtl(Boolean.TRUE.equals(request.getDefaultSaveJtl()));
+        task.setCleanupPlanId(request.getCleanupPlanId());
         task.setUpdatedAt(now);
         testTaskMapper.updateById(task);
 

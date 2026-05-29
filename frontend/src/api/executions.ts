@@ -13,6 +13,10 @@ export interface TestExecution {
   durationSeconds?: number;
   currentStepOrder?: number;
   errorMessage?: string;
+  cleanupStatus: string;
+  cleanupStartedAt?: string;
+  cleanupEndedAt?: string;
+  cleanupErrorMessage?: string;
   createdBy?: string;
   createdAt: string;
   updatedAt: string;
@@ -39,6 +43,11 @@ export async function cancelExecution(executionId: number) {
 
 export async function stopExecution(executionId: number) {
   const response = await http.post<ApiResponse<TestExecution>>(`/api/executions/${executionId}/stop`);
+  return response.data.data;
+}
+
+export async function retryCleanup(executionId: number) {
+  const response = await http.post<ApiResponse<TestExecution>>(`/api/executions/${executionId}/cleanup/retry`);
   return response.data.data;
 }
 

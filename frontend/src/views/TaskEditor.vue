@@ -3,6 +3,7 @@ import { ElMessage } from "element-plus";
 import { computed, onMounted, reactive, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { listJmxFiles } from "../api/config";
+import { listCleanupPlans, type CleanupPlan } from "../api/cleanup";
 import { createTask, getTask, updateTask, type TaskPayload } from "../api/tasks";
 
 const route = useRoute();
@@ -12,12 +13,15 @@ const taskId = computed(() => Number(route.params.taskId));
 const isEditing = computed(() => Number.isFinite(taskId.value) && taskId.value > 0);
 const projectId = ref<number>();
 const jmxFiles = ref<string[]>([]);
+const cleanupPlans = ref<CleanupPlan[]>([]);
 const loadingJmxFiles = ref(false);
+const loadingCleanupPlans = ref(false);
 const loadingTask = ref(false);
 const form = reactive({
   name: "",
   description: "",
   defaultSaveJtl: false,
+  cleanupPlanId: undefined as number | undefined,
   stepName: "",
   jmxFile: "",
   threads: 100,
@@ -51,6 +55,23 @@ async function loadJmxFiles() {
   }
 }
 
+async function loadCleanupPlans() {
+  if (!projectId.value) {
+    cleanupPlans.value = [];
+    form.cleanupPlanId = undefined;
+    return;
+  }
+  loadingCleanupPlans.value = true;
+  try {
+    cleanupPlans.value = await listCleanupPlans(projectId.value);
+    if (form.cleanupPlanId && !cleanupPlans.value.some((item) => item.id === form.cleanupPlanId)) {
+      form.cleanupPlanId = undefined;
+    }
+  } finally {
+    loadingCleanupPlans.value = false;
+  }
+}
+
 async function loadTask() {
   if (!isEditing.value) {
     projectId.value = routeProjectId.value || undefined;
@@ -64,6 +85,7 @@ async function loadTask() {
     form.name = task.name;
     form.description = task.description || "";
     form.defaultSaveJtl = task.defaultSaveJtl;
+    form.cleanupPlanId = task.cleanupPlanId;
     form.stepName = step?.stepName || "";
     form.jmxFile = step?.jmxFile || "";
     form.threads = step?.threads || 100;
@@ -81,6 +103,7 @@ function buildPayload(): TaskPayload {
     name: form.name.trim(),
     description: form.description.trim() || undefined,
     defaultSaveJtl: form.defaultSaveJtl,
+    cleanupPlanId: form.cleanupPlanId,
     step: {
       stepName: form.stepName.trim() || form.name.trim(),
       jmxFile: form.jmxFile.trim(),
@@ -118,7 +141,7 @@ async function submitTask() {
 
 onMounted(async () => {
   await loadTask();
-  await loadJmxFiles();
+  await Promise.all([loadJmxFiles(), loadCleanupPlans()]);
 });
 </script>
 
@@ -135,6 +158,17 @@ onMounted(async () => {
     <el-form label-width="130px">
       <el-form-item label="任务名称" required><el-input v-model="form.name" /></el-form-item>
       <el-form-item label="描述"><el-input v-model="form.description" type="textarea" :rows="3" /></el-form-item>
+      <el-form-item label="清理方案">
+        <el-select
+          v-model="form.cleanupPlanId"
+          :loading="loadingCleanupPlans"
+          placeholder="执行成功后可自动清理数据"
+          clearable
+          filterable
+        >
+          <el-option v-for="plan in cleanupPlans" :key="plan.id" :label="plan.name" :value="plan.id" />
+        </el-select>
+      </el-form-item>
       <el-form-item label="步骤名称"><el-input v-model="form.stepName" /></el-form-item>
       <el-form-item label="JMX 文件" required>
         <el-select
@@ -153,7 +187,7 @@ onMounted(async () => {
       <el-form-item label="保存 JTL"><el-switch v-model="form.saveJtl" /></el-form-item>
       <el-form-item label="JMeter 参数"><el-input v-model="form.jmeterArgsJson" type="textarea" :rows="4" /></el-form-item>
       <el-form-item>
-        <el-button type="primary" :disabled="loadingTask || loadingJmxFiles || jmxFiles.length === 0" @click="submitTask">保存任务</el-button>
+        <el-button type="primary" :disabled="loadingTask || loadingJmxFiles || loadingCleanupPlans || jmxFiles.length === 0" @click="submitTask">保存任务</el-button>
         <el-button @click="backToTasks">取消</el-button>
       </el-form-item>
     </el-form>

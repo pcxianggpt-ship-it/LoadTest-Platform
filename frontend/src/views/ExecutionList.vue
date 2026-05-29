@@ -8,6 +8,7 @@ import {
   createScheduledExecution,
   deleteExecution,
   listExecutions,
+  retryCleanup,
   stopExecution,
   type TestExecution,
 } from "../api/executions";
@@ -171,6 +172,12 @@ async function removeExecution(row: TestExecution) {
   await loadData();
 }
 
+async function retryExecutionCleanup(row: TestExecution) {
+  await retryCleanup(row.id);
+  ElMessage.success("已重新触发数据清理");
+  await loadData();
+}
+
 function openResultDialog(row: TestExecution) {
   activeExecution.value = row;
   resultForm.name = `${row.executionName}结果`;
@@ -193,6 +200,13 @@ function canCancel(status: string) {
 
 function canStop(status: string) {
   return status === "running";
+}
+
+function cleanupStatusTip(row: TestExecution) {
+  if (row.cleanupErrorMessage) {
+    return row.cleanupErrorMessage;
+  }
+  return row.cleanupStatus === "none" ? "执行完成后才会产生清理状态" : "";
 }
 
 watch(selectedProjectId, loadData);
@@ -242,6 +256,13 @@ onMounted(async () => {
       <el-table-column prop="status" label="状态" width="120" sortable>
         <template #default="{ row }"><StatusTag :status="row.status" /></template>
       </el-table-column>
+      <el-table-column prop="cleanupStatus" label="清理状态" width="130" sortable>
+        <template #default="{ row }">
+          <el-tooltip :disabled="!cleanupStatusTip(row)" :content="cleanupStatusTip(row)" placement="top">
+            <span><StatusTag :status="row.cleanupStatus" /></span>
+          </el-tooltip>
+        </template>
+      </el-table-column>
       <el-table-column prop="scheduledAt" label="计划时间" min-width="200" sortable>
         <template #default="{ row }">{{ formatDisplayDateTime(row.scheduledAt) }}</template>
       </el-table-column>
@@ -256,6 +277,7 @@ onMounted(async () => {
           <el-button v-if="canCancel(row.status)" link type="danger" @click="cancel(row)">取消</el-button>
           <el-button v-if="canStop(row.status)" link type="danger" @click="stop(row)">停止</el-button>
           <el-button v-if="row.status === 'success'" link type="primary" @click="openResultDialog(row)">生成结果</el-button>
+          <el-button v-if="row.cleanupStatus === 'failed'" link type="warning" @click="retryExecutionCleanup(row)">重试清理</el-button>
           <el-button link type="danger" @click="removeExecution(row)">删除</el-button>
         </template>
       </el-table-column>
