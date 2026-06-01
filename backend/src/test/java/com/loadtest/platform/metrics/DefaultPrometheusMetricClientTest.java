@@ -57,6 +57,12 @@ class DefaultPrometheusMetricClientTest {
         assertThat(queries).anySatisfy(query -> assertThat(query)
                 .contains("node_disk_io_time_seconds_total")
                 .contains("10.0.0.11:9100"));
+        assertThat(queries).anySatisfy(query -> assertThat(query)
+                .contains("max(irate(node_network_receive_bytes_total")
+                .contains("device!~\"lo|docker.*|veth.*|br-.*|cni.*|flannel.*\""));
+        assertThat(queries).anySatisfy(query -> assertThat(query)
+                .contains("max(irate(node_network_transmit_bytes_total")
+                .contains("device!~\"lo|docker.*|veth.*|br-.*|cni.*|flannel.*\""));
         assertThat(metrics).hasSize(7);
         assertThat(metric(metrics, "cpu", "CPU usage").getValue()).isEqualByComparingTo(BigDecimal.valueOf(82.5));
         assertThat(metric(metrics, "disk_io", "IO wait").getValue()).isEqualByComparingTo(BigDecimal.valueOf(12.7));
@@ -86,7 +92,7 @@ class DefaultPrometheusMetricClientTest {
     }
 
     @Test
-    void queriesAverageK8sPodCpuAndMemoryForEachSelector() {
+    void queriesAverageK8sPodCpuMemoryAndNetworkForEachSelector() {
         ProjectDatasource datasource = new ProjectDatasource();
         datasource.setBaseUrl(baseUrl);
         DefaultPrometheusMetricClient client = new DefaultPrometheusMetricClient();
@@ -98,7 +104,7 @@ class DefaultPrometheusMetricClientTest {
                 "2026-05-13T10:10:00+08:00"
         );
 
-        assertThat(queries).hasSize(2);
+        assertThat(queries).hasSize(4);
         assertThat(queryTimes).containsOnly("2026-05-13T02:10:00Z");
         assertThat(queries).anySatisfy(query -> assertThat(query)
                 .contains("container_cpu_usage_seconds_total")
@@ -110,7 +116,17 @@ class DefaultPrometheusMetricClientTest {
                 .contains("namespace=\"default\"")
                 .contains("pod=~\"order-service-.*\"")
                 .contains("[600s:]"));
-        assertThat(metrics).hasSize(4);
+        assertThat(queries).anySatisfy(query -> assertThat(query)
+                .contains("container_network_receive_bytes_total")
+                .contains("namespace=\"default\"")
+                .contains("pod=~\"order-service-.*\"")
+                .contains("[600s:]"));
+        assertThat(queries).anySatisfy(query -> assertThat(query)
+                .contains("container_network_transmit_bytes_total")
+                .contains("namespace=\"default\"")
+                .contains("pod=~\"order-service-.*\"")
+                .contains("[600s:]"));
+        assertThat(metrics).hasSize(8);
         assertThat(metric(metrics, "k8s_pod_cpu", "Pod CPU usage", "default/order-service-abc").getStatType())
                 .isEqualTo("avg");
         assertThat(metric(metrics, "k8s_pod_cpu", "Pod CPU usage", "default/order-service-abc").getUnit())
@@ -125,6 +141,12 @@ class DefaultPrometheusMetricClientTest {
                 .isEqualByComparingTo("256");
         assertThat(metric(metrics, "k8s_pod_memory", "Pod memory usage", "default/order-service-def").getValue())
                 .isEqualByComparingTo("384");
+        assertThat(metric(metrics, "k8s_pod_network", "Pod Network receive", "default/order-service-abc").getUnit())
+                .isEqualTo("B/s");
+        assertThat(metric(metrics, "k8s_pod_network", "Pod Network receive", "default/order-service-abc").getValue())
+                .isEqualByComparingTo("1024");
+        assertThat(metric(metrics, "k8s_pod_network", "Pod Network transmit", "default/order-service-def").getValue())
+                .isEqualByComparingTo("4096");
     }
 
     private void handleQuery(HttpExchange exchange) throws IOException {
@@ -184,6 +206,46 @@ class DefaultPrometheusMetricClientTest {
                           {
                             "metric": {"namespace": "default", "pod": "order-service-def"},
                             "value": [1778656800, "384"]
+                          }
+                        ]
+                      }
+                    }
+                    """;
+        }
+        if (query.contains("container_network_receive_bytes_total")) {
+            return """
+                    {
+                      "status": "success",
+                      "data": {
+                        "resultType": "vector",
+                        "result": [
+                          {
+                            "metric": {"namespace": "default", "pod": "order-service-abc"},
+                            "value": [1778656800, "1024"]
+                          },
+                          {
+                            "metric": {"namespace": "default", "pod": "order-service-def"},
+                            "value": [1778656800, "2048"]
+                          }
+                        ]
+                      }
+                    }
+                    """;
+        }
+        if (query.contains("container_network_transmit_bytes_total")) {
+            return """
+                    {
+                      "status": "success",
+                      "data": {
+                        "resultType": "vector",
+                        "result": [
+                          {
+                            "metric": {"namespace": "default", "pod": "order-service-abc"},
+                            "value": [1778656800, "3072"]
+                          },
+                          {
+                            "metric": {"namespace": "default", "pod": "order-service-def"},
+                            "value": [1778656800, "4096"]
                           }
                         ]
                       }

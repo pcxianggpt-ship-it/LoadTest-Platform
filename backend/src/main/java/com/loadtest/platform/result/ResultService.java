@@ -112,7 +112,7 @@ public class ResultService {
                 ));
             }
             int resourceMetricCount = metrics.size() - metricCountBefore;
-            int expectedResourceMetricCount = instances.size() * 7 + k8sPods.size() * 2;
+            int expectedResourceMetricCount = instances.size() * 7 + k8sPods.size() * 4;
             if (expectedResourceMetricCount > 0 && resourceMetricCount < expectedResourceMetricCount) {
                 resourceMetricsIncomplete = true;
                 resourceMetricsError = "Prometheus 指标采集不完整: expected="

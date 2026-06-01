@@ -69,6 +69,10 @@ public class DefaultPrometheusMetricClient implements PrometheusMetricClient {
                     podCpuAverageQuery(selector, range), "cores", queryTime);
             addAverageMetrics(metrics, datasource, "k8s_pod_memory", "Pod memory usage",
                     podMemoryAverageQuery(selector, range), "MiB", queryTime);
+            addAverageMetrics(metrics, datasource, "k8s_pod_network", "Pod Network receive",
+                    podNetworkReceiveQuery(selector, range), "B/s", queryTime);
+            addAverageMetrics(metrics, datasource, "k8s_pod_network", "Pod Network transmit",
+                    podNetworkTransmitQuery(selector, range), "B/s", queryTime);
         }
         if (!selectors.isEmpty() && metrics.isEmpty()) {
             throw new IllegalStateException("Prometheus returned no k8s pod resource metrics");
@@ -230,13 +234,13 @@ public class DefaultPrometheusMetricClient implements PrometheusMetricClient {
     }
 
     private String networkReceiveQuery(String instance, String range) {
-        return "max_over_time(rate(node_network_receive_bytes_total{instance=\""
-                + instance + "\",device!~\"lo\"}[1m])[" + range + ":])";
+        return "max_over_time((max(irate(node_network_receive_bytes_total{instance=\""
+                + instance + "\",device!~\"lo|docker.*|veth.*|br-.*|cni.*|flannel.*\"}[1m])))[" + range + ":])";
     }
 
     private String networkTransmitQuery(String instance, String range) {
-        return "max_over_time(rate(node_network_transmit_bytes_total{instance=\""
-                + instance + "\",device!~\"lo\"}[1m])[" + range + ":])";
+        return "max_over_time((max(irate(node_network_transmit_bytes_total{instance=\""
+                + instance + "\",device!~\"lo|docker.*|veth.*|br-.*|cni.*|flannel.*\"}[1m])))[" + range + ":])";
     }
 
     private String loadQuery(String instance, String range) {
@@ -253,6 +257,18 @@ public class DefaultPrometheusMetricClient implements PrometheusMetricClient {
         return "avg_over_time((sum by(namespace,pod) (container_memory_working_set_bytes{namespace=\""
                 + selector.namespace() + "\",pod=~\"" + selector.podRegex()
                 + "\",container!=\"\",image!=\"\"} / 1024 / 1024))[" + range + ":])";
+    }
+
+    private String podNetworkReceiveQuery(K8sPodSelector selector, String range) {
+        return "max_over_time((sum by(namespace,pod) (irate(container_network_receive_bytes_total{namespace=\""
+                + selector.namespace() + "\",pod=~\"" + selector.podRegex()
+                + "\"}[1m])))[" + range + ":])";
+    }
+
+    private String podNetworkTransmitQuery(K8sPodSelector selector, String range) {
+        return "max_over_time((sum by(namespace,pod) (irate(container_network_transmit_bytes_total{namespace=\""
+                + selector.namespace() + "\",pod=~\"" + selector.podRegex()
+                + "\"}[1m])))[" + range + ":])";
     }
 
     private MetricSample sample(String category, String name, String target, BigDecimal value, String unit) {

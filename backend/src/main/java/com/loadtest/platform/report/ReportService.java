@@ -365,7 +365,8 @@ public class ReportService {
 
     private boolean isPodMetric(TestResultMetric metric) {
         return "k8s_pod_cpu".equals(metric.getMetricCategory())
-                || "k8s_pod_memory".equals(metric.getMetricCategory());
+                || "k8s_pod_memory".equals(metric.getMetricCategory())
+                || "k8s_pod_network".equals(metric.getMetricCategory());
     }
 
     private String resourceStatusText(List<TestResultMetric> metrics, String normalText) {
@@ -414,6 +415,7 @@ public class ReportService {
             case "load" -> "系统负载";
             case "k8s_pod_cpu" -> "Pod CPU";
             case "k8s_pod_memory" -> "Pod 内存";
+            case "k8s_pod_network" -> metric.getMetricName();
             default -> metric.getMetricName();
         };
     }

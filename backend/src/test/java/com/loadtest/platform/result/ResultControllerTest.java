@@ -77,7 +77,7 @@ class ResultControllerTest {
     }
 
     @Test
-    void includesK8sPodCpuAndMemoryMetricsWhenPrometheusDatasourceHasPodSelectors() throws Exception {
+    void includesK8sPodCpuMemoryAndNetworkMetricsWhenPrometheusDatasourceHasPodSelectors() throws Exception {
         Long projectId = createProjectWithK8sPodDatasource();
         Long executionId = createSuccessExecution(projectId);
         when(influxMetricClient.queryJMeterSummary(any(), any(), any()))
@@ -89,15 +89,19 @@ class ResultControllerTest {
 
         mockMvc.perform(post("/api/executions/{executionId}/results", executionId)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"name\":\"pod resource result\"}"))
+                .content("{\"name\":\"pod resource result\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("success"))
-                .andExpect(jsonPath("$.data.metrics.length()").value(11))
+                .andExpect(jsonPath("$.data.metrics.length()").value(13))
                 .andExpect(jsonPath("$.data.metrics[9].metricCategory").value("k8s_pod_cpu"))
                 .andExpect(jsonPath("$.data.metrics[9].statType").value("avg"))
                 .andExpect(jsonPath("$.data.metrics[9].unit").value("cores"))
                 .andExpect(jsonPath("$.data.metrics[10].metricCategory").value("k8s_pod_memory"))
-                .andExpect(jsonPath("$.data.metrics[10].unit").value("MiB"));
+                .andExpect(jsonPath("$.data.metrics[10].unit").value("MiB"))
+                .andExpect(jsonPath("$.data.metrics[11].metricCategory").value("k8s_pod_network"))
+                .andExpect(jsonPath("$.data.metrics[11].metricName").value("Pod Network receive"))
+                .andExpect(jsonPath("$.data.metrics[11].unit").value("B/s"))
+                .andExpect(jsonPath("$.data.metrics[12].metricName").value("Pod Network transmit"));
     }
 
     @Test
@@ -317,7 +321,9 @@ class ResultControllerTest {
     private List<MetricSample> k8sPodMetrics() {
         return List.of(
                 sample("prometheus", "k8s_pod_cpu", "Pod CPU usage", "default/order-service-.*", "avg", BigDecimal.valueOf(0.35), "cores"),
-                sample("prometheus", "k8s_pod_memory", "Pod memory usage", "default/order-service-.*", "avg", BigDecimal.valueOf(256), "MiB")
+                sample("prometheus", "k8s_pod_memory", "Pod memory usage", "default/order-service-.*", "avg", BigDecimal.valueOf(256), "MiB"),
+                sample("prometheus", "k8s_pod_network", "Pod Network receive", "default/order-service-.*", "max", BigDecimal.valueOf(1024), "B/s"),
+                sample("prometheus", "k8s_pod_network", "Pod Network transmit", "default/order-service-.*", "max", BigDecimal.valueOf(2048), "B/s")
         );
     }
 
