@@ -44,8 +44,8 @@ public class DefaultPrometheusMetricClient implements PrometheusMetricClient {
             addMetric(metrics, datasource, "memory", "Memory usage", instance, memoryQuery(instance, range), "%", queryTime);
             addMetric(metrics, datasource, "disk", "Disk usage", instance, diskQuery(instance, range), "%", queryTime);
             addMetric(metrics, datasource, "disk_io", "IO wait", instance, diskIoTimeQuery(instance, range), "%", queryTime);
-            addMetric(metrics, datasource, "network", "Network receive", instance, networkReceiveQuery(instance, range), "B/s", queryTime);
-            addMetric(metrics, datasource, "network", "Network transmit", instance, networkTransmitQuery(instance, range), "B/s", queryTime);
+            addMetric(metrics, datasource, "network", "Network receive", instance, networkReceiveQuery(instance, range), "MB/s", queryTime);
+            addMetric(metrics, datasource, "network", "Network transmit", instance, networkTransmitQuery(instance, range), "MB/s", queryTime);
             addMetric(metrics, datasource, "load", "System load", instance, loadQuery(instance, range), "", queryTime);
         }
         if (!instances.isEmpty() && metrics.isEmpty()) {
@@ -70,9 +70,9 @@ public class DefaultPrometheusMetricClient implements PrometheusMetricClient {
             addAverageMetrics(metrics, datasource, "k8s_pod_memory", "Pod memory usage",
                     podMemoryAverageQuery(selector, range), "MiB", queryTime);
             addAverageMetrics(metrics, datasource, "k8s_pod_network", "Pod Network receive",
-                    podNetworkReceiveQuery(selector, range), "B/s", queryTime);
+                    podNetworkReceiveQuery(selector, range), "MB/s", queryTime);
             addAverageMetrics(metrics, datasource, "k8s_pod_network", "Pod Network transmit",
-                    podNetworkTransmitQuery(selector, range), "B/s", queryTime);
+                    podNetworkTransmitQuery(selector, range), "MB/s", queryTime);
         }
         if (!selectors.isEmpty() && metrics.isEmpty()) {
             throw new IllegalStateException("Prometheus returned no k8s pod resource metrics");
@@ -235,12 +235,12 @@ public class DefaultPrometheusMetricClient implements PrometheusMetricClient {
 
     private String networkReceiveQuery(String instance, String range) {
         return "max_over_time((max(irate(node_network_receive_bytes_total{instance=\""
-                + instance + "\",device!~\"lo|docker.*|veth.*|br-.*|cni.*|flannel.*\"}[1m])))[" + range + ":])";
+                + instance + "\",device!~\"lo|docker.*|veth.*|br-.*|cni.*|flannel.*\"}[1m])) / 1024 / 1024)[" + range + ":])";
     }
 
     private String networkTransmitQuery(String instance, String range) {
         return "max_over_time((max(irate(node_network_transmit_bytes_total{instance=\""
-                + instance + "\",device!~\"lo|docker.*|veth.*|br-.*|cni.*|flannel.*\"}[1m])))[" + range + ":])";
+                + instance + "\",device!~\"lo|docker.*|veth.*|br-.*|cni.*|flannel.*\"}[1m])) / 1024 / 1024)[" + range + ":])";
     }
 
     private String loadQuery(String instance, String range) {
@@ -262,13 +262,13 @@ public class DefaultPrometheusMetricClient implements PrometheusMetricClient {
     private String podNetworkReceiveQuery(K8sPodSelector selector, String range) {
         return "max_over_time((sum by(namespace,pod) (irate(container_network_receive_bytes_total{namespace=\""
                 + selector.namespace() + "\",pod=~\"" + selector.podRegex()
-                + "\"}[1m])))[" + range + ":])";
+                + "\"}[1m])) / 1024 / 1024)[" + range + ":])";
     }
 
     private String podNetworkTransmitQuery(K8sPodSelector selector, String range) {
         return "max_over_time((sum by(namespace,pod) (irate(container_network_transmit_bytes_total{namespace=\""
                 + selector.namespace() + "\",pod=~\"" + selector.podRegex()
-                + "\"}[1m])))[" + range + ":])";
+                + "\"}[1m])) / 1024 / 1024)[" + range + ":])";
     }
 
     private MetricSample sample(String category, String name, String target, BigDecimal value, String unit) {

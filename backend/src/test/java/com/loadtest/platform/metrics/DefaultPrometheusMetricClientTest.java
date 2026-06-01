@@ -59,15 +59,17 @@ class DefaultPrometheusMetricClientTest {
                 .contains("10.0.0.11:9100"));
         assertThat(queries).anySatisfy(query -> assertThat(query)
                 .contains("max(irate(node_network_receive_bytes_total")
+                .contains("/ 1024 / 1024")
                 .contains("device!~\"lo|docker.*|veth.*|br-.*|cni.*|flannel.*\""));
         assertThat(queries).anySatisfy(query -> assertThat(query)
                 .contains("max(irate(node_network_transmit_bytes_total")
+                .contains("/ 1024 / 1024")
                 .contains("device!~\"lo|docker.*|veth.*|br-.*|cni.*|flannel.*\""));
         assertThat(metrics).hasSize(7);
         assertThat(metric(metrics, "cpu", "CPU usage").getValue()).isEqualByComparingTo(BigDecimal.valueOf(82.5));
         assertThat(metric(metrics, "disk_io", "IO wait").getValue()).isEqualByComparingTo(BigDecimal.valueOf(12.7));
         assertThat(metric(metrics, "memory", "Memory usage").getUnit()).isEqualTo("%");
-        assertThat(metric(metrics, "network", "Network receive").getUnit()).isEqualTo("B/s");
+        assertThat(metric(metrics, "network", "Network receive").getUnit()).isEqualTo("MB/s");
         assertThat(metric(metrics, "load", "System load").getTargetName()).isEqualTo("10.0.0.11:9100");
     }
 
@@ -120,11 +122,13 @@ class DefaultPrometheusMetricClientTest {
                 .contains("container_network_receive_bytes_total")
                 .contains("namespace=\"default\"")
                 .contains("pod=~\"order-service-.*\"")
+                .contains("/ 1024 / 1024")
                 .contains("[600s:]"));
         assertThat(queries).anySatisfy(query -> assertThat(query)
                 .contains("container_network_transmit_bytes_total")
                 .contains("namespace=\"default\"")
                 .contains("pod=~\"order-service-.*\"")
+                .contains("/ 1024 / 1024")
                 .contains("[600s:]"));
         assertThat(metrics).hasSize(8);
         assertThat(metric(metrics, "k8s_pod_cpu", "Pod CPU usage", "default/order-service-abc").getStatType())
@@ -142,7 +146,7 @@ class DefaultPrometheusMetricClientTest {
         assertThat(metric(metrics, "k8s_pod_memory", "Pod memory usage", "default/order-service-def").getValue())
                 .isEqualByComparingTo("384");
         assertThat(metric(metrics, "k8s_pod_network", "Pod Network receive", "default/order-service-abc").getUnit())
-                .isEqualTo("B/s");
+                .isEqualTo("MB/s");
         assertThat(metric(metrics, "k8s_pod_network", "Pod Network receive", "default/order-service-abc").getValue())
                 .isEqualByComparingTo("1024");
         assertThat(metric(metrics, "k8s_pod_network", "Pod Network transmit", "default/order-service-def").getValue())
