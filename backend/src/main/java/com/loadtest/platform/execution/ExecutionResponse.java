@@ -19,6 +19,7 @@ public class ExecutionResponse {
     private Integer durationSeconds;
     private Integer currentStepOrder;
     private String errorMessage;
+    private String remark;
     private String cleanupStatus;
     private String cleanupStartedAt;
     private String cleanupEndedAt;
@@ -41,6 +42,7 @@ public class ExecutionResponse {
                 .durationSeconds(execution.getDurationSeconds())
                 .currentStepOrder(execution.getCurrentStepOrder())
                 .errorMessage(execution.getErrorMessage())
+                .remark(execution.getRemark())
                 .cleanupStatus(execution.getCleanupStatus())
                 .cleanupStartedAt(execution.getCleanupStartedAt())
                 .cleanupEndedAt(execution.getCleanupEndedAt())

@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -38,6 +39,14 @@ public class ExecutionController {
     @GetMapping("/api/executions/{executionId}")
     public ApiResponse<ExecutionResponse> getExecution(@PathVariable Long executionId) {
         return ApiResponse.ok(executionService.getExecution(executionId));
+    }
+
+    @PutMapping("/api/executions/{executionId}")
+    public ApiResponse<ExecutionResponse> updateExecution(
+            @PathVariable Long executionId,
+            @Valid @RequestBody ExecutionUpdateRequest request
+    ) {
+        return ApiResponse.ok(executionService.updateExecution(executionId, request));
     }
 
     @PostMapping("/api/executions/{executionId}/cancel")

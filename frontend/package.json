@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
-    "test": "node scripts/test-date-time.mjs && node scripts/test-task-editor-defaults.mjs && node scripts/test-execution-task-select.mjs && node scripts/test-list-sorting.mjs",
+    "test": "node scripts/test-date-time.mjs && node scripts/test-task-editor-defaults.mjs && node scripts/test-execution-task-select.mjs && node scripts/test-list-sorting.mjs && node scripts/test-execution-edit.mjs",
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview --host 0.0.0.0"
   },

@@ -135,6 +135,30 @@ class ExecutionControllerTest {
     }
 
     @Test
+    void updatesExecutionNameAndRemark() throws Exception {
+        Long taskId = createTask(createProject());
+        Long executionId = createManualExecution(taskId);
+        String body = """
+                {
+                  "executionName": "订单查询基准压测",
+                  "remark": "100 并发，关闭缓存后的基线"
+                }
+                """;
+
+        mockMvc.perform(put("/api/executions/{executionId}", executionId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.executionName").value("订单查询基准压测"))
+                .andExpect(jsonPath("$.data.remark").value("100 并发，关闭缓存后的基线"));
+
+        mockMvc.perform(get("/api/executions/{executionId}", executionId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.executionName").value("订单查询基准压测"))
+                .andExpect(jsonPath("$.data.remark").value("100 并发，关闭缓存后的基线"));
+    }
+
+    @Test
     void returnsNotFoundWhenTaskDoesNotExist() throws Exception {
         mockMvc.perform(post("/api/tasks/999/executions/manual"))
                 .andExpect(status().isNotFound())

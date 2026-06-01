@@ -13,6 +13,7 @@ export interface TestExecution {
   durationSeconds?: number;
   currentStepOrder?: number;
   errorMessage?: string;
+  remark?: string;
   cleanupStatus: string;
   cleanupStartedAt?: string;
   cleanupEndedAt?: string;
@@ -24,6 +25,11 @@ export interface TestExecution {
 
 export interface ScheduledExecutionPayload {
   scheduledAt: string;
+}
+
+export interface ExecutionUpdatePayload {
+  executionName: string;
+  remark?: string;
 }
 
 export async function createManualExecution(taskId: number) {
@@ -48,6 +54,11 @@ export async function stopExecution(executionId: number) {
 
 export async function retryCleanup(executionId: number) {
   const response = await http.post<ApiResponse<TestExecution>>(`/api/executions/${executionId}/cleanup/retry`);
+  return response.data.data;
+}
+
+export async function updateExecution(executionId: number, payload: ExecutionUpdatePayload) {
+  const response = await http.put<ApiResponse<TestExecution>>(`/api/executions/${executionId}`, payload);
   return response.data.data;
 }
 

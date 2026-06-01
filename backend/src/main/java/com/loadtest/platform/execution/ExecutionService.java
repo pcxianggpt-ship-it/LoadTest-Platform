@@ -65,6 +65,16 @@ public class ExecutionService {
     }
 
     @Transactional
+    public ExecutionResponse updateExecution(Long executionId, ExecutionUpdateRequest request) {
+        TestExecution execution = getExecutionOrThrow(executionId);
+        execution.setExecutionName(request.getExecutionName().trim());
+        execution.setRemark(blankToNull(request.getRemark()));
+        execution.setUpdatedAt(OffsetDateTime.now().toString());
+        testExecutionMapper.updateById(execution);
+        return ExecutionResponse.from(execution);
+    }
+
+    @Transactional
     public void deleteExecution(Long executionId) {
         getExecutionOrThrow(executionId);
         deletionService.deleteExecution(executionId);
@@ -384,6 +394,13 @@ public class ExecutionService {
 
     private String nullToEmpty(String value) {
         return value == null ? "" : value;
+    }
+
+    private String blankToNull(String value) {
+        if (value == null || value.trim().isEmpty()) {
+            return null;
+        }
+        return value.trim();
     }
 
     private String remoteRunDir(JMeterServer server, TestExecutionStep step) {

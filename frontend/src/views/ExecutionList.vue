@@ -10,6 +10,7 @@ import {
   listExecutions,
   retryCleanup,
   stopExecution,
+  updateExecution,
   type TestExecution,
 } from "../api/executions";
 import { listProjects, type Project } from "../api/projects";
@@ -29,8 +30,10 @@ const selectedTaskId = ref<number>();
 const taskSearchKeyword = ref("");
 const resultDialogVisible = ref(false);
 const scheduleDialogVisible = ref(false);
+const editDialogVisible = ref(false);
 const activeExecution = ref<TestExecution>();
 const resultForm = reactive({ name: "" });
+const editForm = reactive({ executionName: "", remark: "" });
 const scheduledAt = ref<Date>();
 
 const executionRows = computed(() =>
@@ -178,6 +181,27 @@ async function retryExecutionCleanup(row: TestExecution) {
   await loadData();
 }
 
+function openEditDialog(row: TestExecution) {
+  activeExecution.value = row;
+  editForm.executionName = row.executionName;
+  editForm.remark = row.remark || "";
+  editDialogVisible.value = true;
+}
+
+async function submitEdit() {
+  if (!activeExecution.value || !editForm.executionName.trim()) {
+    ElMessage.warning("执行名称不能为空");
+    return;
+  }
+  await updateExecution(activeExecution.value.id, {
+    executionName: editForm.executionName.trim(),
+    remark: editForm.remark.trim() || undefined,
+  });
+  ElMessage.success("执行信息已更新");
+  editDialogVisible.value = false;
+  await loadData();
+}
+
 function openResultDialog(row: TestExecution) {
   activeExecution.value = row;
   resultForm.name = `${row.executionName}结果`;
@@ -252,6 +276,9 @@ onMounted(async () => {
 
     <el-table :data="executionRows" border stripe :default-sort="{ prop: 'sortTime', order: 'descending' }">
       <el-table-column prop="executionName" label="执行名称" min-width="240" sortable />
+      <el-table-column prop="remark" label="备注" min-width="220" show-overflow-tooltip sortable>
+        <template #default="{ row }">{{ row.remark || "-" }}</template>
+      </el-table-column>
       <el-table-column prop="triggerType" label="触发方式" width="110" sortable />
       <el-table-column prop="status" label="状态" width="120" sortable>
         <template #default="{ row }"><StatusTag :status="row.status" /></template>
@@ -276,6 +303,7 @@ onMounted(async () => {
         <template #default="{ row }">
           <el-button v-if="canCancel(row.status)" link type="danger" @click="cancel(row)">取消</el-button>
           <el-button v-if="canStop(row.status)" link type="danger" @click="stop(row)">停止</el-button>
+          <el-button link type="primary" @click="openEditDialog(row)">编辑</el-button>
           <el-button v-if="row.status === 'success'" link type="primary" @click="openResultDialog(row)">生成结果</el-button>
           <el-button v-if="row.cleanupStatus === 'failed'" link type="warning" @click="retryExecutionCleanup(row)">重试清理</el-button>
           <el-button link type="danger" @click="removeExecution(row)">删除</el-button>
@@ -290,6 +318,28 @@ onMounted(async () => {
       <template #footer>
         <el-button @click="resultDialogVisible = false">取消</el-button>
         <el-button type="primary" @click="submitResult">生成</el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog v-model="editDialogVisible" title="编辑执行信息" width="520px">
+      <el-form label-width="90px">
+        <el-form-item label="执行名称" required>
+          <el-input v-model="editForm.executionName" maxlength="100" show-word-limit />
+        </el-form-item>
+        <el-form-item label="备注">
+          <el-input
+            v-model="editForm.remark"
+            type="textarea"
+            maxlength="500"
+            show-word-limit
+            :rows="4"
+            placeholder="记录本次执行的背景、参数差异或观察结论"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="editDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="submitEdit">保存</el-button>
       </template>
     </el-dialog>
 
