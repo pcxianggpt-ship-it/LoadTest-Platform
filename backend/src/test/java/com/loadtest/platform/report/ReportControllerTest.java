@@ -73,11 +73,43 @@ class ReportControllerTest {
                 .andExpect(jsonPath("$.data.resultIdsJson").value("[" + resultId + "]"))
                 .andExpect(jsonPath("$.data.contentMarkdown", containsString("## 1. 测试概述")))
                 .andExpect(jsonPath("$.data.contentMarkdown", containsString("## 8. 后续建议")))
-                .andExpect(jsonPath("$.data.contentHtml", containsString("<h2>1. 测试概述</h2>")));
+                .andExpect(jsonPath("$.data.contentHtml", containsString("<h2>1. 测试概述</h2>")))
+                .andExpect(jsonPath("$.data.contentHtml", containsString("<table>")));
 
         mockMvc.perform(get("/api/projects/{projectId}/reports", testResultMapper.selectById(resultId).getProjectId()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.length()").value(1));
+    }
+
+    @Test
+    void generatesReadableAnalysisWithServerAndPodResourceSummary() throws Exception {
+        Long resultId = createResult("success");
+        addMetric(resultId, "jmeter", "TPS", "all", "avg", BigDecimal.valueOf(428.26), "req/s", "normal");
+        addMetric(resultId, "jmeter", "TPS", "all", "max", BigDecimal.valueOf(458.4), "req/s", "normal");
+        addMetric(resultId, "jmeter", "ART", "all", "avg", BigDecimal.valueOf(74.01), "ms", "normal");
+        addMetric(resultId, "jmeter", "ART", "all", "p95", BigDecimal.valueOf(480.92), "ms", "normal");
+        addMetric(resultId, "jmeter", "error_rate", "all", "avg", BigDecimal.valueOf(0.00081), "%", "normal");
+        addMetric(resultId, "jmeter", "failed_requests", "all", "sum", BigDecimal.valueOf(3), "count", "normal");
+        addMetric(resultId, "cpu", "CPU usage", "192.168.65.139:9100", "max", BigDecimal.valueOf(11.28), "%", "normal");
+        addMetric(resultId, "memory", "Memory usage", "192.168.65.139:9100", "max", BigDecimal.valueOf(69.59), "%", "normal");
+        addMetric(resultId, "disk", "Disk usage", "192.168.65.139:9100", "max", BigDecimal.valueOf(74.86), "%", "normal");
+        addMetric(resultId, "cpu", "CPU usage", "192.168.65.141:9105", "max", BigDecimal.valueOf(21.65), "%", "normal");
+        addMetric(resultId, "memory", "Memory usage", "192.168.65.141:9105", "max", BigDecimal.valueOf(61.39), "%", "normal");
+        addMetric(resultId, "k8s_pod_cpu", "Pod CPU usage", "default/order-api-1", "avg", BigDecimal.valueOf(0.72), "cores", "normal");
+        addMetric(resultId, "k8s_pod_cpu", "Pod CPU usage", "default/order-api-2", "avg", BigDecimal.valueOf(0.41), "cores", "normal");
+        addMetric(resultId, "k8s_pod_memory", "Pod memory usage", "default/order-api-1", "avg", BigDecimal.valueOf(512), "MiB", "normal");
+        addMetric(resultId, "k8s_pod_memory", "Pod memory usage", "default/order-api-2", "avg", BigDecimal.valueOf(438), "MiB", "normal");
+
+        mockMvc.perform(post("/api/results/{resultId}/reports", resultId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.contentMarkdown", containsString("## 7. 自动分析结论")))
+                .andExpect(jsonPath("$.data.contentMarkdown", containsString("### 总体判断")))
+                .andExpect(jsonPath("$.data.contentMarkdown", containsString("### 服务器资源使用概况")))
+                .andExpect(jsonPath("$.data.contentMarkdown", containsString("192.168.65.139:9100")))
+                .andExpect(jsonPath("$.data.contentMarkdown", containsString("### Pod 资源使用概况")))
+                .andExpect(jsonPath("$.data.contentMarkdown", containsString("default/order-api-1")))
+                .andExpect(jsonPath("$.data.contentMarkdown", containsString("Pod CPU")))
+                .andExpect(jsonPath("$.data.contentMarkdown", containsString("Pod 内存")));
     }
 
     @Test
