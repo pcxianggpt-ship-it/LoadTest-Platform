@@ -139,9 +139,5 @@ onMounted(loadResult);
       <MetricTable :metrics="jmeterMetrics" />
     </section>
 
-    <section class="settings-block">
-      <h3>指标明细</h3>
-      <MetricTable :metrics="result?.metrics || []" />
-    </section>
   </section>
 </template>
