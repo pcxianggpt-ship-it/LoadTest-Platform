@@ -72,7 +72,7 @@ class ReportControllerTest {
                 .andExpect(jsonPath("$.data.status").value("success"))
                 .andExpect(jsonPath("$.data.resultIdsJson").value("[" + resultId + "]"))
                 .andExpect(jsonPath("$.data.contentMarkdown", containsString("## 1. 测试概述")))
-                .andExpect(jsonPath("$.data.contentMarkdown", containsString("## 8. 后续建议")))
+                .andExpect(jsonPath("$.data.contentMarkdown", containsString("## 9. 后续建议")))
                 .andExpect(jsonPath("$.data.contentHtml", containsString("<h2>1. 测试概述</h2>")))
                 .andExpect(jsonPath("$.data.contentHtml", containsString("<table>")));
 
@@ -102,12 +102,15 @@ class ReportControllerTest {
 
         mockMvc.perform(post("/api/results/{resultId}/reports", resultId))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.contentMarkdown", containsString("## 7. 自动分析结论")))
+                .andExpect(jsonPath("$.data.contentMarkdown", containsString("## 8. 自动分析结论")))
+                .andExpect(jsonPath("$.data.contentMarkdown", containsString("## 6. Pod 资源表现")))
                 .andExpect(jsonPath("$.data.contentMarkdown", containsString("### 总体判断")))
                 .andExpect(jsonPath("$.data.contentMarkdown", containsString("### 服务器资源使用概况")))
                 .andExpect(jsonPath("$.data.contentMarkdown", containsString("192.168.65.139:9100")))
                 .andExpect(jsonPath("$.data.contentMarkdown", containsString("### Pod 资源使用概况")))
                 .andExpect(jsonPath("$.data.contentMarkdown", containsString("default/order-api-1")))
+                .andExpect(jsonPath("$.data.contentMarkdown", containsString("458.40 req/s")))
+                .andExpect(jsonPath("$.data.contentMarkdown", containsString("3.00 count")))
                 .andExpect(jsonPath("$.data.contentMarkdown", containsString("Pod CPU")))
                 .andExpect(jsonPath("$.data.contentMarkdown", containsString("Pod 内存")));
     }

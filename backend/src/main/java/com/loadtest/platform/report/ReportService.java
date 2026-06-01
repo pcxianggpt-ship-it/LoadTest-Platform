@@ -14,6 +14,7 @@ import com.loadtest.platform.result.TestResultMetricMapper;
 import com.loadtest.platform.task.TestTask;
 import com.loadtest.platform.task.TestTaskMapper;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.OffsetDateTime;
 import java.util.Comparator;
 import java.util.List;
@@ -97,6 +98,16 @@ public class ReportService {
         TestExecution execution = testExecutionMapper.selectById(result.getExecutionId());
         TestTask task = execution == null ? null : testTaskMapper.selectById(execution.getTaskId());
         Map<String, Object> analysis = parseJson(result.getAnalysisJson());
+        List<TestResultMetric> jmeterMetrics = metrics.stream()
+                .filter(metric -> "jmeter".equals(metric.getMetricCategory()))
+                .toList();
+        List<TestResultMetric> serverMetrics = metrics.stream()
+                .filter(metric -> !"jmeter".equals(metric.getMetricCategory()))
+                .filter(metric -> !isPodMetric(metric))
+                .toList();
+        List<TestResultMetric> podMetrics = metrics.stream()
+                .filter(this::isPodMetric)
+                .toList();
 
         StringBuilder markdown = new StringBuilder();
         markdown.append("# ").append(result.getName()).append("测试报告\n\n");
@@ -119,16 +130,15 @@ public class ReportService {
                 .append("- 持续时间：").append(execution == null || execution.getDurationSeconds() == null ? "未知" : execution.getDurationSeconds() + " 秒").append("\n");
 
         markdown.append("\n## 4. 核心性能指标\n\n");
-        appendMetricTable(markdown, metrics.stream()
-                .filter(metric -> "jmeter".equals(metric.getMetricCategory()))
-                .toList());
+        appendMetricTable(markdown, jmeterMetrics);
 
         markdown.append("\n## 5. 服务器资源表现\n\n");
-        appendMetricTable(markdown, metrics.stream()
-                .filter(metric -> !"jmeter".equals(metric.getMetricCategory()))
-                .toList());
+        appendMetricTable(markdown, serverMetrics);
 
-        markdown.append("\n## 6. 风险与异常\n\n");
+        markdown.append("\n## 6. Pod 资源表现\n\n");
+        appendMetricTable(markdown, podMetrics);
+
+        markdown.append("\n## 7. 风险与异常\n\n");
         List<TestResultMetric> risks = metrics.stream()
                 .filter(metric -> !"normal".equals(metric.getThresholdStatus()))
                 .toList();
@@ -137,13 +147,13 @@ public class ReportService {
         } else {
             risks.forEach(metric -> markdown.append("- ")
                     .append(metricLabel(metric))
-                    .append("：").append(metric.getValue()).append(metric.getUnit() == null ? "" : metric.getUnit())
+                    .append("：").append(formatMetricValue(metric))
                     .append("，状态 ").append(metric.getThresholdStatus()).append("\n"));
         }
 
         appendAnalysisConclusion(markdown, result, metrics, analysis);
 
-        markdown.append("\n## 8. 后续建议\n\n")
+        markdown.append("\n## 9. 后续建议\n\n")
                 .append(value(analysis, "suggestions", "建议结合业务容量目标继续观察关键接口表现。")).append("\n");
         return markdown.toString();
     }
@@ -168,7 +178,7 @@ public class ReportService {
                 .filter(metric -> !"normal".equals(metric.getThresholdStatus()))
                 .toList();
 
-        markdown.append("\n## 7. 自动分析结论\n\n");
+        markdown.append("\n## 8. 自动分析结论\n\n");
         markdown.append("### 总体判断\n\n");
         if ("partial_success".equals(result.getStatus())) {
             markdown.append("本次压测结果为部分成功，资源指标存在采集不完整情况，以下结论仅作为当前已采集数据的参考。");
@@ -327,7 +337,7 @@ public class ReportService {
                     .append(metricLabel(metric)).append(" | ")
                     .append(metric.getTargetName()).append(" | ")
                     .append(metric.getStatType()).append(" | ")
-                    .append(metric.getValue()).append(metric.getUnit() == null ? "" : " " + metric.getUnit()).append(" | ")
+                    .append(formatMetricValue(metric)).append(" | ")
                     .append(metric.getThresholdStatus() == null ? "normal" : metric.getThresholdStatus()).append(" |\n");
         }
     }
@@ -417,7 +427,7 @@ public class ReportService {
         if (value == null) {
             return "未知";
         }
-        return value.stripTrailingZeros().toPlainString();
+        return value.setScale(2, RoundingMode.HALF_UP).toPlainString();
     }
 
     private String metricLabel(TestResultMetric metric) {

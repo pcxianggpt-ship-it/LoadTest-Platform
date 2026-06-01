@@ -54,8 +54,12 @@ class DefaultPrometheusMetricClientTest {
         assertThat(queries).hasSize(7);
         assertThat(queryTimes).containsOnly("2026-05-13T02:10:00Z");
         assertThat(queries).anySatisfy(query -> assertThat(query).contains("node_cpu_seconds_total").contains("10.0.0.11:9100"));
+        assertThat(queries).anySatisfy(query -> assertThat(query)
+                .contains("node_disk_io_time_seconds_total")
+                .contains("10.0.0.11:9100"));
         assertThat(metrics).hasSize(7);
         assertThat(metric(metrics, "cpu", "CPU usage").getValue()).isEqualByComparingTo(BigDecimal.valueOf(82.5));
+        assertThat(metric(metrics, "disk_io", "IO wait").getValue()).isEqualByComparingTo(BigDecimal.valueOf(12.7));
         assertThat(metric(metrics, "memory", "Memory usage").getUnit()).isEqualTo("%");
         assertThat(metric(metrics, "network", "Network receive").getUnit()).isEqualTo("B/s");
         assertThat(metric(metrics, "load", "System load").getTargetName()).isEqualTo("10.0.0.11:9100");
@@ -129,7 +133,7 @@ class DefaultPrometheusMetricClientTest {
         queries.add(query);
         queryTimes.add(URLDecoder.decode(params.getOrDefault("time", ""), StandardCharsets.UTF_8));
         BigDecimal value = valueForQuery(query);
-        if (query.contains("10.0.0.12:9100") && query.contains("iowait")) {
+        if (query.contains("10.0.0.12:9100") && query.contains("node_disk_io_time_seconds_total")) {
             respond(exchange, """
                     {
                       "status": "success",
@@ -218,7 +222,7 @@ class DefaultPrometheusMetricClientTest {
         if (query.contains("node_filesystem")) {
             return BigDecimal.valueOf(63.4);
         }
-        if (query.contains("iowait")) {
+        if (query.contains("node_disk_io_time_seconds_total")) {
             return BigDecimal.valueOf(12.7);
         }
         if (query.contains("receive_bytes")) {

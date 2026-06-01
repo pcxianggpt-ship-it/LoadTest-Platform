@@ -43,7 +43,7 @@ public class DefaultPrometheusMetricClient implements PrometheusMetricClient {
             addMetric(metrics, datasource, "cpu", "CPU usage", instance, cpuQuery(instance, range), "%", queryTime);
             addMetric(metrics, datasource, "memory", "Memory usage", instance, memoryQuery(instance, range), "%", queryTime);
             addMetric(metrics, datasource, "disk", "Disk usage", instance, diskQuery(instance, range), "%", queryTime);
-            addMetric(metrics, datasource, "disk_io", "IO wait", instance, ioWaitQuery(instance, range), "%", queryTime);
+            addMetric(metrics, datasource, "disk_io", "IO wait", instance, diskIoTimeQuery(instance, range), "%", queryTime);
             addMetric(metrics, datasource, "network", "Network receive", instance, networkReceiveQuery(instance, range), "B/s", queryTime);
             addMetric(metrics, datasource, "network", "Network transmit", instance, networkTransmitQuery(instance, range), "B/s", queryTime);
             addMetric(metrics, datasource, "load", "System load", instance, loadQuery(instance, range), "", queryTime);
@@ -224,9 +224,9 @@ public class DefaultPrometheusMetricClient implements PrometheusMetricClient {
                 + "\",fstype!~\"tmpfs|overlay\"}) * 100)[" + range + ":])";
     }
 
-    private String ioWaitQuery(String instance, String range) {
-        return "max_over_time((avg by(instance) (rate(node_cpu_seconds_total{mode=\"iowait\",instance=\""
-                + instance + "\"}[1m])) * 100)[" + range + ":])";
+    private String diskIoTimeQuery(String instance, String range) {
+        return "max_over_time((max by(instance) (rate(node_disk_io_time_seconds_total{instance=\""
+                + instance + "\",device!~\"loop.*|ram.*|fd.*|sr.*\"}[1m])) * 100)[" + range + ":])";
     }
 
     private String networkReceiveQuery(String instance, String range) {
