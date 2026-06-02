@@ -125,6 +125,37 @@ class TestTaskControllerTest {
                 .andExpect(jsonPath("$.data.cleanupPlanId").value(cleanupPlanId));
     }
 
+    @Test
+    void clearsCleanupPlanWhenUpdatingTaskWithNullCleanupPlanId() throws Exception {
+        Long projectId = createProject();
+        Long databaseId = createBusinessDatabase(projectId);
+        Long cleanupPlanId = createCleanupPlan(projectId, databaseId);
+        Long taskId = createTaskWithCleanupPlan(projectId, cleanupPlanId);
+        String updateBody = """
+                {
+                  "name": "order query without cleanup",
+                  "cleanupPlanId": null,
+                  "step": {
+                    "stepName": "order query",
+                    "jmxFile": "checkout.jmx",
+                    "threads": 100,
+                    "durationSeconds": 600,
+                    "rampUpSeconds": 60
+                  }
+                }
+                """;
+
+        mockMvc.perform(put("/api/tasks/{taskId}", taskId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(updateBody))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.cleanupPlanId").doesNotExist());
+
+        mockMvc.perform(get("/api/tasks/{taskId}", taskId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.cleanupPlanId").doesNotExist());
+    }
+
 
     @Test
     void rejectsInvalidStepValues() throws Exception {
@@ -258,6 +289,30 @@ class TestTaskControllerTest {
                   }
                 }
                 """;
+        String response = mockMvc.perform(post("/api/projects/{projectId}/tasks", projectId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        return extractId(response);
+    }
+
+    private Long createTaskWithCleanupPlan(Long projectId, Long cleanupPlanId) throws Exception {
+        String body = """
+                {
+                  "name": "order query load test",
+                  "cleanupPlanId": %d,
+                  "step": {
+                    "stepName": "order query",
+                    "jmxFile": "order_query.jmx",
+                    "threads": 100,
+                    "durationSeconds": 600,
+                    "rampUpSeconds": 60
+                  }
+                }
+                """.formatted(cleanupPlanId);
         String response = mockMvc.perform(post("/api/projects/{projectId}/tasks", projectId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))

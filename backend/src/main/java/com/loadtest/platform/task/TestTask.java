@@ -1,6 +1,8 @@
 package com.loadtest.platform.task;
 
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.FieldStrategy;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
@@ -15,6 +17,7 @@ public class TestTask {
     private String name;
     private String description;
     private Boolean defaultSaveJtl;
+    @TableField(updateStrategy = FieldStrategy.ALWAYS)
     private Long cleanupPlanId;
     private String status;
     private String createdAt;
