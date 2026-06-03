@@ -93,12 +93,16 @@ class ReportControllerTest {
         addMetric(resultId, "cpu", "CPU usage", "192.168.65.139:9100", "max", BigDecimal.valueOf(11.28), "%", "normal");
         addMetric(resultId, "memory", "Memory usage", "192.168.65.139:9100", "max", BigDecimal.valueOf(69.59), "%", "normal");
         addMetric(resultId, "disk", "Disk usage", "192.168.65.139:9100", "max", BigDecimal.valueOf(74.86), "%", "normal");
+        addMetric(resultId, "network", "Network receive", "192.168.65.139:9100", "max", BigDecimal.valueOf(3.48), "MB/s", "normal");
+        addMetric(resultId, "network", "Network transmit", "192.168.65.139:9100", "max", BigDecimal.valueOf(7.38), "MB/s", "normal");
         addMetric(resultId, "cpu", "CPU usage", "192.168.65.141:9105", "max", BigDecimal.valueOf(21.65), "%", "normal");
         addMetric(resultId, "memory", "Memory usage", "192.168.65.141:9105", "max", BigDecimal.valueOf(61.39), "%", "normal");
         addMetric(resultId, "k8s_pod_cpu", "Pod CPU usage", "default/order-api-1", "avg", BigDecimal.valueOf(0.72), "cores", "normal");
         addMetric(resultId, "k8s_pod_cpu", "Pod CPU usage", "default/order-api-2", "avg", BigDecimal.valueOf(0.41), "cores", "normal");
         addMetric(resultId, "k8s_pod_memory", "Pod memory usage", "default/order-api-1", "avg", BigDecimal.valueOf(512), "MiB", "normal");
         addMetric(resultId, "k8s_pod_memory", "Pod memory usage", "default/order-api-2", "avg", BigDecimal.valueOf(438), "MiB", "normal");
+        addMetric(resultId, "k8s_pod_network", "Pod Network receive", "default/order-api-1", "avg", BigDecimal.valueOf(1.24), "MB/s", "normal");
+        addMetric(resultId, "k8s_pod_network", "Pod Network transmit", "default/order-api-1", "avg", BigDecimal.valueOf(2.56), "MB/s", "normal");
 
         mockMvc.perform(post("/api/results/{resultId}/reports", resultId))
                 .andExpect(status().isOk())
@@ -106,9 +110,13 @@ class ReportControllerTest {
                 .andExpect(jsonPath("$.data.contentMarkdown", containsString("## 6. Pod 资源表现")))
                 .andExpect(jsonPath("$.data.contentMarkdown", containsString("### 总体判断")))
                 .andExpect(jsonPath("$.data.contentMarkdown", containsString("### 服务器资源使用概况")))
+                .andExpect(jsonPath("$.data.contentMarkdown", containsString("| IP | CPU使用率 | 内存使用率 | IO wait | 分区使用率 | 下行带宽 | 上传带宽 | 负载 |")))
                 .andExpect(jsonPath("$.data.contentMarkdown", containsString("192.168.65.139:9100")))
+                .andExpect(jsonPath("$.data.contentMarkdown", containsString("| 192.168.65.139:9100 | 11.28% | 69.59% | - | 74.86% | 3.48 MB/s | 7.38 MB/s | - |")))
                 .andExpect(jsonPath("$.data.contentMarkdown", containsString("### Pod 资源使用概况")))
+                .andExpect(jsonPath("$.data.contentMarkdown", containsString("| Pod | CPU使用量 | 内存使用量 | 下行带宽 | 上传带宽 |")))
                 .andExpect(jsonPath("$.data.contentMarkdown", containsString("default/order-api-1")))
+                .andExpect(jsonPath("$.data.contentMarkdown", containsString("| default/order-api-1 | 0.72 cores | 512.00 MiB | 1.24 MB/s | 2.56 MB/s |")))
                 .andExpect(jsonPath("$.data.contentMarkdown", containsString("458.40 req/s")))
                 .andExpect(jsonPath("$.data.contentMarkdown", containsString("3.00 count")))
                 .andExpect(jsonPath("$.data.contentMarkdown", containsString("Pod CPU")))

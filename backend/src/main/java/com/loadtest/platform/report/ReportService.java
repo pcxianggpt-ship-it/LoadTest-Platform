@@ -17,6 +17,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.OffsetDateTime;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -133,10 +134,10 @@ public class ReportService {
         appendMetricTable(markdown, jmeterMetrics);
 
         markdown.append("\n## 5. 服务器资源表现\n\n");
-        appendMetricTable(markdown, serverMetrics);
+        appendServerResourceTable(markdown, serverMetrics);
 
         markdown.append("\n## 6. Pod 资源表现\n\n");
-        appendMetricTable(markdown, podMetrics);
+        appendPodResourceTable(markdown, podMetrics);
 
         markdown.append("\n## 7. 风险与异常\n\n");
         List<TestResultMetric> risks = metrics.stream()
@@ -342,6 +343,57 @@ public class ReportService {
         }
     }
 
+    private void appendServerResourceTable(StringBuilder markdown, List<TestResultMetric> metrics) {
+        if (metrics.isEmpty()) {
+            markdown.append("暂无服务器资源指标数据。\n");
+            return;
+        }
+        markdown.append("| IP | CPU使用率 | 内存使用率 | IO wait | 分区使用率 | 下行带宽 | 上传带宽 | 负载 |\n")
+                .append("| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |\n");
+        groupedByTarget(metrics).forEach((target, targetMetrics) -> markdown.append("| ")
+                .append(target).append(" | ")
+                .append(metricCell(targetMetrics, "cpu", "CPU usage")).append(" | ")
+                .append(metricCell(targetMetrics, "memory", "Memory usage")).append(" | ")
+                .append(metricCell(targetMetrics, "disk_io", "IO wait")).append(" | ")
+                .append(metricCell(targetMetrics, "disk", "Disk usage")).append(" | ")
+                .append(metricCell(targetMetrics, "network", "Network receive")).append(" | ")
+                .append(metricCell(targetMetrics, "network", "Network transmit")).append(" | ")
+                .append(metricCell(targetMetrics, "load", "System load")).append(" |\n"));
+    }
+
+    private void appendPodResourceTable(StringBuilder markdown, List<TestResultMetric> metrics) {
+        if (metrics.isEmpty()) {
+            markdown.append("暂无 Pod CPU、内存或网络指标数据。\n");
+            return;
+        }
+        markdown.append("| Pod | CPU使用量 | 内存使用量 | 下行带宽 | 上传带宽 |\n")
+                .append("| --- | ---: | ---: | ---: | ---: |\n");
+        groupedByTarget(metrics).forEach((target, targetMetrics) -> markdown.append("| ")
+                .append(target).append(" | ")
+                .append(metricCell(targetMetrics, "k8s_pod_cpu", "Pod CPU usage")).append(" | ")
+                .append(metricCell(targetMetrics, "k8s_pod_memory", "Pod memory usage")).append(" | ")
+                .append(metricCell(targetMetrics, "k8s_pod_network", "Pod Network receive")).append(" | ")
+                .append(metricCell(targetMetrics, "k8s_pod_network", "Pod Network transmit")).append(" |\n"));
+    }
+
+    private Map<String, List<TestResultMetric>> groupedByTarget(List<TestResultMetric> metrics) {
+        return metrics.stream().collect(LinkedHashMap::new, (groups, metric) -> groups
+                .computeIfAbsent(metric.getTargetName() == null || metric.getTargetName().isBlank()
+                        ? "未知"
+                        : metric.getTargetName(), ignored -> new java.util.ArrayList<>())
+                .add(metric), Map::putAll);
+    }
+
+    private String metricCell(List<TestResultMetric> metrics, String category, String name) {
+        return metrics.stream()
+                .filter(metric -> category.equals(metric.getMetricCategory()))
+                .filter(metric -> name.equals(metric.getMetricName()))
+                .filter(metric -> metric.getValue() != null)
+                .max(Comparator.comparing(TestResultMetric::getValue))
+                .map(this::formatCompactMetricValue)
+                .orElse("-");
+    }
+
     private Optional<TestResultMetric> findMetric(
             List<TestResultMetric> metrics,
             String category,
@@ -421,6 +473,14 @@ public class ReportService {
     }
 
     private String formatMetricValue(TestResultMetric metric) {
+        String unit = metric.getUnit() == null || metric.getUnit().isBlank() ? "" : " " + metric.getUnit();
+        return formatNumber(metric.getValue()) + unit;
+    }
+
+    private String formatCompactMetricValue(TestResultMetric metric) {
+        if ("%".equals(metric.getUnit())) {
+            return formatNumber(metric.getValue()) + "%";
+        }
         String unit = metric.getUnit() == null || metric.getUnit().isBlank() ? "" : " " + metric.getUnit();
         return formatNumber(metric.getValue()) + unit;
     }
