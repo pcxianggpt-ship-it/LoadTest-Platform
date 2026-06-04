@@ -1,6 +1,7 @@
 package com.loadtest.platform.report;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -90,9 +91,9 @@ class ReportControllerTest {
         addMetric(resultId, "jmeter", "ART", "all", "p95", BigDecimal.valueOf(480.92), "ms", "normal");
         addMetric(resultId, "jmeter", "error_rate", "all", "avg", BigDecimal.valueOf(0.00081), "%", "normal");
         addMetric(resultId, "jmeter", "failed_requests", "all", "sum", BigDecimal.valueOf(3), "count", "normal");
-        addMetric(resultId, "cpu", "CPU usage", "192.168.65.139:9100", "max", BigDecimal.valueOf(11.28), "%", "normal");
+        addMetric(resultId, "cpu", "CPU usage", "192.168.65.139:9100", "max", BigDecimal.valueOf(11.28), "%", "warning");
         addMetric(resultId, "memory", "Memory usage", "192.168.65.139:9100", "max", BigDecimal.valueOf(69.59), "%", "normal");
-        addMetric(resultId, "disk", "Disk usage", "192.168.65.139:9100", "max", BigDecimal.valueOf(74.86), "%", "normal");
+        addMetric(resultId, "disk", "Disk usage", "192.168.65.139:9100", "max", BigDecimal.valueOf(74.86), "%", "critical");
         addMetric(resultId, "network", "Network receive", "192.168.65.139:9100", "max", BigDecimal.valueOf(3.48), "MB/s", "normal");
         addMetric(resultId, "network", "Network transmit", "192.168.65.139:9100", "max", BigDecimal.valueOf(7.38), "MB/s", "normal");
         addMetric(resultId, "cpu", "CPU usage", "192.168.65.141:9105", "max", BigDecimal.valueOf(21.65), "%", "normal");
@@ -108,15 +109,20 @@ class ReportControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.contentMarkdown", containsString("## 8. 自动分析结论")))
                 .andExpect(jsonPath("$.data.contentMarkdown", containsString("## 6. Pod 资源表现")))
+                .andExpect(jsonPath("$.data.contentMarkdown", not(containsString("阈值状态"))))
                 .andExpect(jsonPath("$.data.contentMarkdown", containsString("### 总体判断")))
                 .andExpect(jsonPath("$.data.contentMarkdown", containsString("### 服务器资源使用概况")))
-                .andExpect(jsonPath("$.data.contentMarkdown", containsString("| IP | CPU使用率 | 内存使用率 | IO wait | 分区使用率 | 下行带宽 | 上传带宽 | 负载 |")))
+                .andExpect(jsonPath("$.data.contentMarkdown", containsString("<th>IP</th>")))
+                .andExpect(jsonPath("$.data.contentMarkdown", containsString("<th>CPU使用率</th>")))
                 .andExpect(jsonPath("$.data.contentMarkdown", containsString("192.168.65.139:9100")))
-                .andExpect(jsonPath("$.data.contentMarkdown", containsString("| 192.168.65.139:9100 | 11.28% | 69.59% | - | 74.86% | 3.48 MB/s | 7.38 MB/s | - |")))
+                .andExpect(jsonPath("$.data.contentMarkdown", containsString("<td>192.168.65.139:9100</td>")))
+                .andExpect(jsonPath("$.data.contentMarkdown", containsString("<span class=\"metric-cell metric-cell-warning\">11.28%</span>")))
+                .andExpect(jsonPath("$.data.contentMarkdown", containsString("<span class=\"metric-cell metric-cell-critical\">74.86%</span>")))
                 .andExpect(jsonPath("$.data.contentMarkdown", containsString("### Pod 资源使用概况")))
-                .andExpect(jsonPath("$.data.contentMarkdown", containsString("| Pod | CPU使用量 | 内存使用量 | 下行带宽 | 上传带宽 |")))
+                .andExpect(jsonPath("$.data.contentMarkdown", containsString("<th>Pod</th>")))
                 .andExpect(jsonPath("$.data.contentMarkdown", containsString("default/order-api-1")))
-                .andExpect(jsonPath("$.data.contentMarkdown", containsString("| default/order-api-1 | 0.72 cores | 512.00 MiB | 1.24 MB/s | 2.56 MB/s |")))
+                .andExpect(jsonPath("$.data.contentMarkdown", containsString("<td>default/order-api-1</td>")))
+                .andExpect(jsonPath("$.data.contentMarkdown", containsString("<span class=\"metric-cell metric-cell-normal\">1.24 MB/s</span>")))
                 .andExpect(jsonPath("$.data.contentMarkdown", containsString("458.40 req/s")))
                 .andExpect(jsonPath("$.data.contentMarkdown", containsString("3.00 count")))
                 .andExpect(jsonPath("$.data.contentMarkdown", containsString("Pod CPU")))

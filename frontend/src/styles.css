@@ -317,11 +317,28 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
-.report-content td:last-child,
-.report-content td:nth-last-child(2) {
-  background: #16a34a;
+.report-content .metric-cell {
+  display: inline-block;
+  min-width: 72px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  text-align: right;
+}
+
+.report-content .metric-cell-warning {
+  background: #facc15;
+  color: #422006;
+  font-weight: 700;
+}
+
+.report-content .metric-cell-critical {
+  background: #dc2626;
   color: #ffffff;
-  font-weight: 600;
+  font-weight: 700;
+}
+
+.report-content .metric-cell-normal {
+  color: #1f2937;
 }
 
 @media (max-width: 900px) {

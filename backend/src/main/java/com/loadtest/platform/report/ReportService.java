@@ -331,15 +331,14 @@ public class ReportService {
             markdown.append("暂无指标数据。\n");
             return;
         }
-        markdown.append("| 指标 | 对象 | 统计 | 数值 | 阈值状态 |\n")
-                .append("| --- | --- | --- | --- | --- |\n");
+        markdown.append("| 指标 | 对象 | 统计 | 数值 |\n")
+                .append("| --- | --- | --- | --- |\n");
         for (TestResultMetric metric : metrics) {
             markdown.append("| ")
                     .append(metricLabel(metric)).append(" | ")
                     .append(metric.getTargetName()).append(" | ")
                     .append(metric.getStatType()).append(" | ")
-                    .append(formatMetricValue(metric)).append(" | ")
-                    .append(metric.getThresholdStatus() == null ? "normal" : metric.getThresholdStatus()).append(" |\n");
+                    .append(formatHighlightedMetricValue(metric)).append(" |\n");
         }
     }
 
@@ -348,17 +347,27 @@ public class ReportService {
             markdown.append("暂无服务器资源指标数据。\n");
             return;
         }
-        markdown.append("| IP | CPU使用率 | 内存使用率 | IO wait | 分区使用率 | 下行带宽 | 上传带宽 | 负载 |\n")
-                .append("| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |\n");
-        groupedByTarget(metrics).forEach((target, targetMetrics) -> markdown.append("| ")
-                .append(target).append(" | ")
-                .append(metricCell(targetMetrics, "cpu", "CPU usage")).append(" | ")
-                .append(metricCell(targetMetrics, "memory", "Memory usage")).append(" | ")
-                .append(metricCell(targetMetrics, "disk_io", "IO wait")).append(" | ")
-                .append(metricCell(targetMetrics, "disk", "Disk usage")).append(" | ")
-                .append(metricCell(targetMetrics, "network", "Network receive")).append(" | ")
-                .append(metricCell(targetMetrics, "network", "Network transmit")).append(" | ")
-                .append(metricCell(targetMetrics, "load", "System load")).append(" |\n"));
+        markdown.append("""
+                <table class="resource-summary-table">
+                <thead>
+                <tr><th>IP</th><th>CPU使用率</th><th>内存使用率</th><th>IO wait</th><th>分区使用率</th><th>下行带宽</th><th>上传带宽</th><th>负载</th></tr>
+                </thead>
+                <tbody>
+                """);
+        groupedByTarget(metrics).forEach((target, targetMetrics) -> markdown.append("<tr>")
+                .append("<td>").append(escapeHtml(target)).append("</td>")
+                .append("<td>").append(metricCell(targetMetrics, "cpu", "CPU usage")).append("</td>")
+                .append("<td>").append(metricCell(targetMetrics, "memory", "Memory usage")).append("</td>")
+                .append("<td>").append(metricCell(targetMetrics, "disk_io", "IO wait")).append("</td>")
+                .append("<td>").append(metricCell(targetMetrics, "disk", "Disk usage")).append("</td>")
+                .append("<td>").append(metricCell(targetMetrics, "network", "Network receive")).append("</td>")
+                .append("<td>").append(metricCell(targetMetrics, "network", "Network transmit")).append("</td>")
+                .append("<td>").append(metricCell(targetMetrics, "load", "System load")).append("</td>")
+                .append("</tr>\n"));
+        markdown.append("""
+                </tbody>
+                </table>
+                """);
     }
 
     private void appendPodResourceTable(StringBuilder markdown, List<TestResultMetric> metrics) {
@@ -366,14 +375,24 @@ public class ReportService {
             markdown.append("暂无 Pod CPU、内存或网络指标数据。\n");
             return;
         }
-        markdown.append("| Pod | CPU使用量 | 内存使用量 | 下行带宽 | 上传带宽 |\n")
-                .append("| --- | ---: | ---: | ---: | ---: |\n");
-        groupedByTarget(metrics).forEach((target, targetMetrics) -> markdown.append("| ")
-                .append(target).append(" | ")
-                .append(metricCell(targetMetrics, "k8s_pod_cpu", "Pod CPU usage")).append(" | ")
-                .append(metricCell(targetMetrics, "k8s_pod_memory", "Pod memory usage")).append(" | ")
-                .append(metricCell(targetMetrics, "k8s_pod_network", "Pod Network receive")).append(" | ")
-                .append(metricCell(targetMetrics, "k8s_pod_network", "Pod Network transmit")).append(" |\n"));
+        markdown.append("""
+                <table class="resource-summary-table pod-summary-table">
+                <thead>
+                <tr><th>Pod</th><th>CPU使用量</th><th>内存使用量</th><th>下行带宽</th><th>上传带宽</th></tr>
+                </thead>
+                <tbody>
+                """);
+        groupedByTarget(metrics).forEach((target, targetMetrics) -> markdown.append("<tr>")
+                .append("<td>").append(escapeHtml(target)).append("</td>")
+                .append("<td>").append(metricCell(targetMetrics, "k8s_pod_cpu", "Pod CPU usage")).append("</td>")
+                .append("<td>").append(metricCell(targetMetrics, "k8s_pod_memory", "Pod memory usage")).append("</td>")
+                .append("<td>").append(metricCell(targetMetrics, "k8s_pod_network", "Pod Network receive")).append("</td>")
+                .append("<td>").append(metricCell(targetMetrics, "k8s_pod_network", "Pod Network transmit")).append("</td>")
+                .append("</tr>\n"));
+        markdown.append("""
+                </tbody>
+                </table>
+                """);
     }
 
     private Map<String, List<TestResultMetric>> groupedByTarget(List<TestResultMetric> metrics) {
@@ -390,7 +409,7 @@ public class ReportService {
                 .filter(metric -> name.equals(metric.getMetricName()))
                 .filter(metric -> metric.getValue() != null)
                 .max(Comparator.comparing(TestResultMetric::getValue))
-                .map(this::formatCompactMetricValue)
+                .map(this::formatHighlightedMetricValue)
                 .orElse("-");
     }
 
@@ -485,6 +504,15 @@ public class ReportService {
         return formatNumber(metric.getValue()) + unit;
     }
 
+    private String formatHighlightedMetricValue(TestResultMetric metric) {
+        String status = metric.getThresholdStatus() == null || metric.getThresholdStatus().isBlank()
+                ? "normal"
+                : metric.getThresholdStatus();
+        return "<span class=\"metric-cell metric-cell-" + escapeHtml(status) + "\">"
+                + escapeHtml(formatCompactMetricValue(metric))
+                + "</span>";
+    }
+
     private String formatNumber(BigDecimal value) {
         if (value == null) {
             return "未知";
@@ -494,6 +522,18 @@ public class ReportService {
 
     private String metricLabel(TestResultMetric metric) {
         return metric.getMetricCategory() + " / " + metric.getMetricName();
+    }
+
+    private String escapeHtml(String value) {
+        if (value == null) {
+            return "";
+        }
+        return value
+                .replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace("\"", "&quot;")
+                .replace("'", "&#39;");
     }
 
     private String renderHtml(String markdown) {
