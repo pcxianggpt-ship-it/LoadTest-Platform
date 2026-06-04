@@ -378,17 +378,19 @@ public class ReportService {
         markdown.append("""
                 <table class="resource-summary-table pod-summary-table">
                 <thead>
-                <tr><th>Pod</th><th>CPU使用量</th><th>内存使用量</th><th>下行带宽</th><th>上传带宽</th></tr>
+                <tr><th>namespace</th><th>pod</th><th>cpu (avg)</th><th>memory (avg)</th></tr>
                 </thead>
                 <tbody>
                 """);
-        groupedByTarget(metrics).forEach((target, targetMetrics) -> markdown.append("<tr>")
-                .append("<td>").append(escapeHtml(target)).append("</td>")
-                .append("<td>").append(metricCell(targetMetrics, "k8s_pod_cpu", "Pod CPU usage")).append("</td>")
-                .append("<td>").append(metricCell(targetMetrics, "k8s_pod_memory", "Pod memory usage")).append("</td>")
-                .append("<td>").append(metricCell(targetMetrics, "k8s_pod_network", "Pod Network receive")).append("</td>")
-                .append("<td>").append(metricCell(targetMetrics, "k8s_pod_network", "Pod Network transmit")).append("</td>")
-                .append("</tr>\n"));
+        groupedByTarget(metrics).forEach((target, targetMetrics) -> {
+            PodTarget podTarget = PodTarget.from(target);
+            markdown.append("<tr>")
+                    .append("<td>").append(escapeHtml(podTarget.namespace())).append("</td>")
+                    .append("<td>").append(escapeHtml(podTarget.pod())).append("</td>")
+                    .append("<td>").append(metricCell(targetMetrics, "k8s_pod_cpu", "Pod CPU usage")).append("</td>")
+                    .append("<td>").append(metricCell(targetMetrics, "k8s_pod_memory", "Pod memory usage")).append("</td>")
+                    .append("</tr>\n");
+        });
         markdown.append("""
                 </tbody>
                 </table>
@@ -500,6 +502,12 @@ public class ReportService {
         if ("%".equals(metric.getUnit())) {
             return formatNumber(metric.getValue()) + "%";
         }
+        if ("cores".equals(metric.getUnit())) {
+            return formatNumber(metric.getValue()) + " core";
+        }
+        if ("MiB".equals(metric.getUnit())) {
+            return formatNumber(metric.getValue()) + " MB";
+        }
         String unit = metric.getUnit() == null || metric.getUnit().isBlank() ? "" : " " + metric.getUnit();
         return formatNumber(metric.getValue()) + unit;
     }
@@ -534,6 +542,21 @@ public class ReportService {
                 .replace(">", "&gt;")
                 .replace("\"", "&quot;")
                 .replace("'", "&#39;");
+    }
+
+    private record PodTarget(String namespace, String pod) {
+        private static PodTarget from(String target) {
+            if (target == null || target.isBlank()) {
+                return new PodTarget("-", "-");
+            }
+            int separator = target.indexOf('/');
+            if (separator < 0) {
+                return new PodTarget("-", target);
+            }
+            String namespace = target.substring(0, separator);
+            String pod = target.substring(separator + 1);
+            return new PodTarget(namespace.isBlank() ? "-" : namespace, pod.isBlank() ? "-" : pod);
+        }
     }
 
     private String renderHtml(String markdown) {
