@@ -32,6 +32,7 @@ public class ResultService {
     private final TestExecutionMapper testExecutionMapper;
     private final TestResultMapper testResultMapper;
     private final TestResultMetricMapper testResultMetricMapper;
+    private final TestResultImageMapper testResultImageMapper;
     private final ProjectDatasourceMapper projectDatasourceMapper;
     private final InfluxMetricClient influxMetricClient;
     private final PrometheusMetricClient prometheusMetricClient;
@@ -162,7 +163,7 @@ public class ResultService {
                 .eq(TestResult::getProjectId, projectId)
                 .orderByDesc(TestResult::getId);
         return testResultMapper.selectList(wrapper).stream()
-                .map(result -> ResultResponse.from(result, metrics(result.getId())))
+                .map(result -> ResultResponse.from(result, metrics(result.getId()), images(result.getId())))
                 .toList();
     }
 
@@ -171,7 +172,7 @@ public class ResultService {
         if (result == null) {
             throw new NotFoundException("result not found");
         }
-        return ResultResponse.from(result, metrics(resultId));
+        return ResultResponse.from(result, metrics(resultId), images(resultId));
     }
 
     @Transactional
@@ -204,6 +205,13 @@ public class ResultService {
                 .eq(TestResultMetric::getResultId, resultId)
                 .orderByAsc(TestResultMetric::getId);
         return testResultMetricMapper.selectList(wrapper);
+    }
+
+    private List<TestResultImage> images(Long resultId) {
+        LambdaQueryWrapper<TestResultImage> wrapper = new LambdaQueryWrapper<TestResultImage>()
+                .eq(TestResultImage::getResultId, resultId)
+                .orderByDesc(TestResultImage::getId);
+        return testResultImageMapper.selectList(wrapper);
     }
 
     private ProjectDatasource datasource(Long projectId, String type) {

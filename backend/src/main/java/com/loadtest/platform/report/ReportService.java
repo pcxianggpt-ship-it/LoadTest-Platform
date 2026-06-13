@@ -8,6 +8,8 @@ import com.loadtest.platform.common.NotFoundException;
 import com.loadtest.platform.execution.TestExecution;
 import com.loadtest.platform.execution.TestExecutionMapper;
 import com.loadtest.platform.result.TestResult;
+import com.loadtest.platform.result.TestResultImage;
+import com.loadtest.platform.result.TestResultImageMapper;
 import com.loadtest.platform.result.TestResultMapper;
 import com.loadtest.platform.result.TestResultMetric;
 import com.loadtest.platform.result.TestResultMetricMapper;
@@ -38,6 +40,7 @@ public class ReportService {
     private final TestReportMapper testReportMapper;
     private final TestResultMapper testResultMapper;
     private final TestResultMetricMapper testResultMetricMapper;
+    private final TestResultImageMapper testResultImageMapper;
     private final TestExecutionMapper testExecutionMapper;
     private final TestTaskMapper testTaskMapper;
     private final ObjectMapper objectMapper;
@@ -53,7 +56,8 @@ public class ReportService {
         }
 
         List<TestResultMetric> metrics = metrics(resultId);
-        String markdown = buildMarkdown(result, metrics);
+        List<TestResultImage> images = images(resultId);
+        String markdown = buildMarkdown(result, metrics, images);
         String html = renderHtml(markdown);
         String now = OffsetDateTime.now().toString();
 
@@ -95,7 +99,7 @@ public class ReportService {
         deletionService.deleteReport(reportId);
     }
 
-    private String buildMarkdown(TestResult result, List<TestResultMetric> metrics) {
+    private String buildMarkdown(TestResult result, List<TestResultMetric> metrics, List<TestResultImage> images) {
         TestExecution execution = testExecutionMapper.selectById(result.getExecutionId());
         TestTask task = execution == null ? null : testTaskMapper.selectById(execution.getTaskId());
         Map<String, Object> analysis = parseJson(result.getAnalysisJson());
@@ -130,6 +134,8 @@ public class ReportService {
                 .append("- 执行状态：").append(execution == null ? "未知" : execution.getStatus()).append("\n")
                 .append("- 持续时间：").append(execution == null || execution.getDurationSeconds() == null ? "未知" : execution.getDurationSeconds() + " 秒").append("\n");
 
+        appendGrafanaImages(markdown, images);
+
         markdown.append("\n## 4. 核心性能指标\n\n");
         appendMetricTable(markdown, jmeterMetrics);
 
@@ -157,6 +163,27 @@ public class ReportService {
         markdown.append("\n## 9. 后续建议\n\n")
                 .append(value(analysis, "suggestions", "建议结合业务容量目标继续观察关键接口表现。")).append("\n");
         return markdown.toString();
+    }
+
+    private void appendGrafanaImages(StringBuilder markdown, List<TestResultImage> images) {
+        if (images.isEmpty()) {
+            return;
+        }
+        markdown.append("\n### Grafana 图表归档\n\n");
+        for (TestResultImage image : images) {
+            markdown.append("<figure class=\"grafana-image-figure\">")
+                    .append("<img src=\"/api/result-images/")
+                    .append(image.getId())
+                    .append("/content\" alt=\"")
+                    .append(escapeHtml(image.getTitle()))
+                    .append("\" />")
+                    .append("<figcaption>")
+                    .append(escapeHtml(image.getTitle()))
+                    .append("，Panel ")
+                    .append(image.getPanelId())
+                    .append("</figcaption>")
+                    .append("</figure>\n\n");
+        }
     }
 
     private void appendAnalysisConclusion(
@@ -572,6 +599,13 @@ public class ReportService {
                 .eq(TestResultMetric::getResultId, resultId)
                 .orderByAsc(TestResultMetric::getId);
         return testResultMetricMapper.selectList(wrapper);
+    }
+
+    private List<TestResultImage> images(Long resultId) {
+        LambdaQueryWrapper<TestResultImage> wrapper = new LambdaQueryWrapper<TestResultImage>()
+                .eq(TestResultImage::getResultId, resultId)
+                .orderByAsc(TestResultImage::getId);
+        return testResultImageMapper.selectList(wrapper);
     }
 
     @SuppressWarnings("unchecked")

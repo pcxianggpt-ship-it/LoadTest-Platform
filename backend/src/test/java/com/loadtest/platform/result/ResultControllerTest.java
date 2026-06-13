@@ -11,6 +11,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.loadtest.platform.execution.TestExecution;
 import com.loadtest.platform.execution.TestExecutionMapper;
+import com.loadtest.platform.grafana.GrafanaImageClient;
+import com.loadtest.platform.grafana.GrafanaImageData;
 import com.loadtest.platform.metrics.InfluxMetricClient;
 import com.loadtest.platform.metrics.MetricSample;
 import com.loadtest.platform.metrics.PrometheusMetricClient;
@@ -34,11 +36,13 @@ import org.springframework.test.web.servlet.MockMvc;
 class ResultControllerTest {
 
     private static final Path DB_PATH = Path.of("target", "result-controller-test.db");
+    private static final Path IMAGE_DIR = Path.of("target", "result-controller-images");
 
     @DynamicPropertySource
     static void databaseProperties(DynamicPropertyRegistry registry) throws Exception {
         Files.deleteIfExists(DB_PATH);
         registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + DB_PATH.toAbsolutePath());
+        registry.add("loadtest.grafana.image-dir", () -> IMAGE_DIR.toAbsolutePath().toString());
     }
 
     @Autowired
@@ -52,6 +56,9 @@ class ResultControllerTest {
 
     @MockBean(name = "defaultPrometheusMetricClient")
     private PrometheusMetricClient prometheusMetricClient;
+
+    @MockBean(name = "defaultGrafanaImageClient")
+    private GrafanaImageClient grafanaImageClient;
 
     @Test
     void generatesSuccessResultFromSuccessExecution() throws Exception {
@@ -190,6 +197,64 @@ class ResultControllerTest {
 
         mockMvc.perform(get("/api/results/{resultId}", resultId))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void exportsGrafanaPanelImageForResult() throws Exception {
+        Long projectId = createProjectWithDatasources();
+        putDatasource(projectId, "grafana", """
+                {
+                  "name": "main-grafana",
+                  "baseUrl": "http://10.0.0.30:3000",
+                  "tokenEncrypted": "token",
+                  "extraConfigJson": "{\\"dashboardUid\\":\\"perf-main\\",\\"dashboardSlug\\":\\"performance\\",\\"orgId\\":1}"
+                }
+                """);
+        Long executionId = createSuccessExecution(projectId);
+        when(influxMetricClient.queryJMeterSummary(any(), any(), any()))
+                .thenReturn(jmeterMetrics(BigDecimal.valueOf(800)));
+        when(prometheusMetricClient.queryServerResourceSummary(any(), any(), any(), any()))
+                .thenReturn(resourceMetrics(BigDecimal.valueOf(60)));
+        Long resultId = extractId(mockMvc.perform(post("/api/executions/{executionId}/results", executionId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"grafana result\"}"))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString());
+        when(grafanaImageClient.renderPanel(any(), any()))
+                .thenReturn(new GrafanaImageData(new byte[] {1, 2, 3, 4}, "image/png",
+                        "http://10.0.0.30:3000/render/d-solo/perf-main/performance?panelId=7"));
+
+        String imageResponse = mockMvc.perform(post("/api/results/{resultId}/grafana-images", resultId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title": "TPS 趋势",
+                                  "panelId": 7,
+                                  "width": 1200,
+                                  "height": 700
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.title").value("TPS 趋势"))
+                .andExpect(jsonPath("$.data.dashboardUid").value("perf-main"))
+                .andExpect(jsonPath("$.data.panelId").value(7))
+                .andExpect(jsonPath("$.data.downloadUrl").value(org.hamcrest.Matchers.containsString("/api/result-images/")))
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        Long imageId = extractId(imageResponse);
+
+        mockMvc.perform(get("/api/results/{resultId}", resultId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.images.length()").value(1))
+                .andExpect(jsonPath("$.data.images[0].title").value("TPS 趋势"));
+
+        mockMvc.perform(get("/api/result-images/{imageId}/content", imageId))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().contentType("image/png"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().bytes(new byte[] {1, 2, 3, 4}));
     }
 
     private Long createProjectWithDatasources() throws Exception {

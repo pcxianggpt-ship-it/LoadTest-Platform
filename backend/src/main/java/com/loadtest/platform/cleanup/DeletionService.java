@@ -13,6 +13,8 @@ import com.loadtest.platform.projectconfig.ProjectDatasourceMapper;
 import com.loadtest.platform.report.TestReport;
 import com.loadtest.platform.report.TestReportMapper;
 import com.loadtest.platform.result.TestResult;
+import com.loadtest.platform.result.TestResultImage;
+import com.loadtest.platform.result.TestResultImageMapper;
 import com.loadtest.platform.result.TestResultMapper;
 import com.loadtest.platform.result.TestResultMetric;
 import com.loadtest.platform.result.TestResultMetricMapper;
@@ -22,8 +24,13 @@ import com.loadtest.platform.task.TestTaskStep;
 import com.loadtest.platform.task.TestTaskStepMapper;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 @Service
 @RequiredArgsConstructor
@@ -38,12 +45,16 @@ public class DeletionService {
     private final TestExecutionStepMapper testExecutionStepMapper;
     private final TestResultMapper testResultMapper;
     private final TestResultMetricMapper testResultMetricMapper;
+    private final TestResultImageMapper testResultImageMapper;
     private final TestReportMapper testReportMapper;
     private final BusinessDatabaseMapper businessDatabaseMapper;
     private final CleanupPlanMapper cleanupPlanMapper;
     private final CleanupPlanSqlMapper cleanupPlanSqlMapper;
     private final CleanupRunMapper cleanupRunMapper;
     private final CleanupRunStepMapper cleanupRunStepMapper;
+
+    @Value("${loadtest.grafana.image-dir:./data/grafana-images}")
+    private String imageDir;
 
     @Transactional
     public void deleteProject(Long projectId) {
@@ -93,6 +104,7 @@ public class DeletionService {
     @Transactional
     public void deleteResult(Long resultId) {
         deleteReportsByResult(resultId);
+        deleteImagesByResult(resultId);
         testResultMetricMapper.delete(new LambdaQueryWrapper<TestResultMetric>()
                 .eq(TestResultMetric::getResultId, resultId));
         testResultMapper.deleteById(resultId);
@@ -129,6 +141,23 @@ public class DeletionService {
                 .or(wrapper -> wrapper.likeRight(TestReport::getResultIdsJson, "[" + id + ","))
                 .or(wrapper -> wrapper.like(TestReport::getResultIdsJson, "," + id + ","))
                 .or(wrapper -> wrapper.likeLeft(TestReport::getResultIdsJson, "," + id + "]")));
+    }
+
+    private void deleteImagesByResult(Long resultId) {
+        List<TestResultImage> images = testResultImageMapper.selectList(new LambdaQueryWrapper<TestResultImage>()
+                .eq(TestResultImage::getResultId, resultId));
+        Path root = Path.of(imageDir).toAbsolutePath().normalize();
+        for (TestResultImage image : images) {
+            Path path = root.resolve(image.getFilePath()).normalize();
+            if (path.startsWith(root)) {
+                try {
+                    Files.deleteIfExists(path);
+                } catch (IOException ignored) {
+                }
+            }
+        }
+        testResultImageMapper.delete(new LambdaQueryWrapper<TestResultImage>()
+                .eq(TestResultImage::getResultId, resultId));
     }
 
     private List<TestTask> tasksByProject(Long projectId) {

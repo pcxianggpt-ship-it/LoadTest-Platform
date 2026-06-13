@@ -30,6 +30,25 @@ export interface TestResult {
   createdAt: string;
   updatedAt: string;
   metrics: ResultMetric[];
+  images: ResultImage[];
+}
+
+export interface ResultImage {
+  id: number;
+  resultId: number;
+  projectId: number;
+  imageType: string;
+  title: string;
+  dashboardUid: string;
+  dashboardSlug?: string;
+  panelId: number;
+  grafanaUrl: string;
+  downloadUrl: string;
+  contentType: string;
+  fileSize: number;
+  width: number;
+  height: number;
+  createdAt: string;
 }
 
 export interface GenerateResultPayload {
@@ -53,4 +72,20 @@ export async function getResult(resultId: number) {
 
 export async function deleteResult(resultId: number) {
   await http.delete<ApiResponse<null>>(`/api/results/${resultId}`);
+}
+
+export interface ExportGrafanaImagePayload {
+  title?: string;
+  dashboardUid?: string;
+  dashboardSlug?: string;
+  panelId: number;
+  orgId?: number;
+  width?: number;
+  height?: number;
+  theme?: string;
+}
+
+export async function exportGrafanaImage(resultId: number, payload: ExportGrafanaImagePayload) {
+  const response = await http.post<ApiResponse<ResultImage>>(`/api/results/${resultId}/grafana-images`, payload);
+  return response.data.data;
 }

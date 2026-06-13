@@ -21,8 +21,13 @@ public class ResultResponse {
     private String createdAt;
     private String updatedAt;
     private List<ResultMetricResponse> metrics;
+    private List<ResultImageResponse> images;
 
     public static ResultResponse from(TestResult result, List<TestResultMetric> metrics) {
+        return from(result, metrics, List.of());
+    }
+
+    public static ResultResponse from(TestResult result, List<TestResultMetric> metrics, List<TestResultImage> images) {
         return ResultResponse.builder()
                 .id(result.getId())
                 .projectId(result.getProjectId())
@@ -37,6 +42,7 @@ public class ResultResponse {
                 .createdAt(result.getCreatedAt())
                 .updatedAt(result.getUpdatedAt())
                 .metrics(metrics.stream().map(ResultMetricResponse::from).toList())
+                .images(images.stream().map(ResultImageResponse::from).toList())
                 .build();
     }
 }

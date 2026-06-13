@@ -13,6 +13,8 @@ import com.loadtest.platform.execution.TestExecutionMapper;
 import com.loadtest.platform.project.Project;
 import com.loadtest.platform.project.ProjectMapper;
 import com.loadtest.platform.result.TestResult;
+import com.loadtest.platform.result.TestResultImage;
+import com.loadtest.platform.result.TestResultImageMapper;
 import com.loadtest.platform.result.TestResultMapper;
 import com.loadtest.platform.result.TestResultMetric;
 import com.loadtest.platform.result.TestResultMetricMapper;
@@ -50,6 +52,9 @@ class ReportControllerTest {
 
     @Autowired
     private TestResultMetricMapper testResultMetricMapper;
+
+    @Autowired
+    private TestResultImageMapper testResultImageMapper;
 
     @Autowired
     private ProjectMapper projectMapper;
@@ -151,6 +156,20 @@ class ReportControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.contentMarkdown", containsString("资源指标不完整")))
                 .andExpect(jsonPath("$.data.contentHtml", containsString("资源指标不完整")));
+    }
+
+    @Test
+    void embedsArchivedGrafanaImagesInReport() throws Exception {
+        Long resultId = createResult("success");
+        addMetric(resultId, "jmeter", "ART", "all", "p95", BigDecimal.valueOf(850), "ms", "normal");
+        addImage(resultId, "TPS 趋势", 7);
+
+        mockMvc.perform(post("/api/results/{resultId}/reports", resultId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.contentMarkdown", containsString("Grafana 图表归档")))
+                .andExpect(jsonPath("$.data.contentMarkdown", containsString("TPS 趋势")))
+                .andExpect(jsonPath("$.data.contentMarkdown", containsString("/api/result-images/")))
+                .andExpect(jsonPath("$.data.contentHtml", containsString("<figure class=\"grafana-image-figure\">")));
     }
 
     @Test
@@ -260,6 +279,26 @@ class ReportControllerTest {
         metric.setThresholdStatus(thresholdStatus);
         metric.setCreatedAt(OffsetDateTime.now().toString());
         testResultMetricMapper.insert(metric);
+    }
+
+    private void addImage(Long resultId, String title, Integer panelId) {
+        TestResult result = testResultMapper.selectById(resultId);
+        TestResultImage image = new TestResultImage();
+        image.setResultId(resultId);
+        image.setProjectId(result.getProjectId());
+        image.setImageType("grafana_panel");
+        image.setTitle(title);
+        image.setDashboardUid("perf-main");
+        image.setDashboardSlug("performance");
+        image.setPanelId(panelId);
+        image.setGrafanaUrl("http://grafana/render/d-solo/perf-main/performance?panelId=" + panelId);
+        image.setFilePath("1/" + resultId + "/panel-" + panelId + ".png");
+        image.setContentType("image/png");
+        image.setFileSize(4L);
+        image.setWidth(1200);
+        image.setHeight(700);
+        image.setCreatedAt(OffsetDateTime.now().toString());
+        testResultImageMapper.insert(image);
     }
 
     private Long extractId(String responseBody) {
