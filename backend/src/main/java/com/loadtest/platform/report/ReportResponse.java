@@ -12,6 +12,9 @@ public class ReportResponse {
     private String title;
     private String reportType;
     private String status;
+    private String errorMessage;
+    private String startedAt;
+    private String finishedAt;
     private String contentMarkdown;
     private String contentHtml;
     private String resultIdsJson;
@@ -26,6 +29,9 @@ public class ReportResponse {
                 .title(report.getTitle())
                 .reportType(report.getReportType())
                 .status(report.getStatus())
+                .errorMessage(report.getErrorMessage())
+                .startedAt(report.getStartedAt())
+                .finishedAt(report.getFinishedAt())
                 .contentMarkdown(report.getContentMarkdown())
                 .contentHtml(report.getContentHtml())
                 .resultIdsJson(report.getResultIdsJson())

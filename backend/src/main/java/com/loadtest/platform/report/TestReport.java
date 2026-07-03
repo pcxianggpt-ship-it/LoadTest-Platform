@@ -15,6 +15,9 @@ public class TestReport {
     private String title;
     private String reportType;
     private String status;
+    private String errorMessage;
+    private String startedAt;
+    private String finishedAt;
     private String contentMarkdown;
     private String contentHtml;
     private String resultIdsJson;

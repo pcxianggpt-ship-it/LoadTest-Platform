@@ -46,4 +46,18 @@ class SchemaMigrationTest {
                 "test_reports"
         );
     }
+
+    @Test
+    void flywayCreatesAsyncReportStatusColumns() {
+        List<String> columns = jdbcTemplate.queryForList(
+                "select name from pragma_table_info('test_reports')",
+                String.class
+        );
+
+        assertThat(columns).contains(
+                "error_message",
+                "started_at",
+                "finished_at"
+        );
+    }
 }
