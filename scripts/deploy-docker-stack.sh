@@ -4,6 +4,10 @@ set -euo pipefail
 RUNTIME="${RUNTIME:-nerdctl}"
 BASE_DIR="${BASE_DIR:-/opt/stress-test}"
 NETWORK_NAME="${NETWORK_NAME:-stress-test-net}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+IMAGE_DIR="${IMAGE_DIR:-${PROJECT_ROOT}/images}"
+LOAD_IMAGES="${LOAD_IMAGES:-true}"
 
 INFLUXDB_IMAGE="${INFLUXDB_IMAGE:-10.33.1.9:5000/performance-testing/influxdb:1.8.10}"
 PROMETHEUS_IMAGE="${PROMETHEUS_IMAGE:-10.33.1.9:5000/performance-testing/prometheus:latest}"
@@ -35,6 +39,8 @@ Environment overrides:
   RUNTIME=${RUNTIME}
   BASE_DIR=${BASE_DIR}
   NETWORK_NAME=${NETWORK_NAME}
+  IMAGE_DIR=${IMAGE_DIR}
+  LOAD_IMAGES=${LOAD_IMAGES}
   INFLUXDB_IMAGE=${INFLUXDB_IMAGE}
   PROMETHEUS_IMAGE=${PROMETHEUS_IMAGE}
   GRAFANA_IMAGE=${GRAFANA_IMAGE}
@@ -67,6 +73,37 @@ container_exists() {
 
 network_exists() {
   "${RUNTIME}" network ls --format '{{.Name}}' | grep -Fxq "${NETWORK_NAME}"
+}
+
+load_images() {
+  if [[ "${LOAD_IMAGES}" != "true" ]]; then
+    echo "Image load skipped because LOAD_IMAGES=${LOAD_IMAGES}"
+    return
+  fi
+  if [[ ! -d "${IMAGE_DIR}" ]]; then
+    echo "Image directory not found: ${IMAGE_DIR}" >&2
+    exit 1
+  fi
+
+  local found=false
+  local image_file
+  while IFS= read -r -d '' image_file; do
+    found=true
+    echo "Loading image archive: ${image_file}"
+    "${RUNTIME}" load -i "${image_file}"
+  done < <(find "${IMAGE_DIR}" -maxdepth 1 -type f \( \
+      -name "*.tar" -o \
+      -name "*.tar.gz" -o \
+      -name "*.tgz" -o \
+      -name "*.tar.xz" -o \
+      -name "*.txz" -o \
+      -name "*.tar.zst" \
+    \) -print0 | sort -z)
+
+  if [[ "${found}" != "true" ]]; then
+    echo "No image archives found in ${IMAGE_DIR}" >&2
+    exit 1
+  fi
 }
 
 ensure_directories() {
@@ -169,7 +206,9 @@ deploy_jmeter() {
 
 deploy_all() {
   need_command "${RUNTIME}"
+  need_command find
   ensure_directories
+  load_images
   ensure_network
   deploy_influxdb
   deploy_prometheus
