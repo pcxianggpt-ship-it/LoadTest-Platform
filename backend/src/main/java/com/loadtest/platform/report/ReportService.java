@@ -2,6 +2,7 @@ package com.loadtest.platform.report;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.loadtest.platform.cleanup.DeletionService;
 import com.loadtest.platform.common.NotFoundException;
@@ -30,6 +31,7 @@ import org.commonmark.node.Node;
 import org.commonmark.parser.Parser;
 import org.commonmark.renderer.html.HtmlRenderer;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
@@ -47,32 +49,116 @@ public class ReportService {
     private final DeletionService deletionService;
 
     public ReportResponse generateReport(Long resultId) {
-        TestResult result = testResultMapper.selectById(resultId);
-        if (result == null) {
-            throw new NotFoundException("result not found");
-        }
-        if ("failed".equals(result.getStatus())) {
-            throw new IllegalArgumentException("failed result cannot generate report");
-        }
-
-        List<TestResultMetric> metrics = metrics(resultId);
-        List<TestResultImage> images = images(resultId);
-        String markdown = buildMarkdown(result, metrics, images);
-        String html = renderHtml(markdown);
+        TestResult result = resultOrThrow(resultId);
+        ensureReportable(result);
         String now = OffsetDateTime.now().toString();
 
         TestReport report = new TestReport();
         report.setProjectId(result.getProjectId());
         report.setTitle(result.getName() + "测试报告");
         report.setReportType(REPORT_TYPE);
-        report.setStatus("success");
-        report.setContentMarkdown(markdown);
-        report.setContentHtml(html);
+        report.setStatus("pending");
         report.setResultIdsJson(jsonString(List.of(resultId)));
         report.setCreatedAt(now);
         report.setUpdatedAt(now);
         testReportMapper.insert(report);
         return ReportResponse.from(report);
+    }
+
+    @Transactional
+    public void runOnePendingReport() {
+        if (hasRunningReport()) {
+            return;
+        }
+        TestReport report = nextPendingReport();
+        if (report == null) {
+            return;
+        }
+
+        markRunning(report);
+        try {
+            completeReport(report);
+        } catch (Exception exception) {
+            markFailed(report, exception);
+        }
+    }
+
+    private boolean hasRunningReport() {
+        LambdaQueryWrapper<TestReport> wrapper = new LambdaQueryWrapper<TestReport>()
+                .eq(TestReport::getStatus, "running");
+        return testReportMapper.selectCount(wrapper) > 0;
+    }
+
+    private TestReport nextPendingReport() {
+        LambdaQueryWrapper<TestReport> wrapper = new LambdaQueryWrapper<TestReport>()
+                .eq(TestReport::getStatus, "pending")
+                .orderByAsc(TestReport::getCreatedAt)
+                .orderByAsc(TestReport::getId)
+                .last("LIMIT 1");
+        return testReportMapper.selectOne(wrapper);
+    }
+
+    private void markRunning(TestReport report) {
+        String now = OffsetDateTime.now().toString();
+        report.setStatus("running");
+        report.setStartedAt(now);
+        report.setErrorMessage(null);
+        report.setUpdatedAt(now);
+        testReportMapper.updateById(report);
+    }
+
+    private void completeReport(TestReport report) {
+        Long resultId = reportResultId(report);
+        TestResult result = resultOrThrow(resultId);
+        ensureReportable(result);
+        List<TestResultMetric> metrics = metrics(resultId);
+        List<TestResultImage> images = images(resultId);
+        String markdown = buildMarkdown(result, metrics, images);
+        String html = renderHtml(markdown);
+        String now = OffsetDateTime.now().toString();
+
+        report.setStatus("success");
+        report.setContentMarkdown(markdown);
+        report.setContentHtml(html);
+        report.setFinishedAt(now);
+        report.setUpdatedAt(now);
+        testReportMapper.updateById(report);
+    }
+
+    private void markFailed(TestReport report, Exception exception) {
+        String now = OffsetDateTime.now().toString();
+        String message = exception.getMessage() == null ? exception.getClass().getSimpleName() : exception.getMessage();
+        report.setStatus("failed");
+        report.setErrorMessage(message);
+        report.setFinishedAt(now);
+        report.setUpdatedAt(now);
+        testReportMapper.updateById(report);
+    }
+
+    private Long reportResultId(TestReport report) {
+        try {
+            List<Long> resultIds = objectMapper.readValue(report.getResultIdsJson(), new TypeReference<List<Long>>() { });
+            if (resultIds.size() != 1 || resultIds.get(0) == null) {
+                throw new IllegalStateException("report must contain exactly one result id");
+            }
+            return resultIds.get(0);
+        } catch (JsonProcessingException exception) {
+            throw new IllegalStateException("invalid report result ids json", exception);
+        }
+    }
+
+    private TestResult resultOrThrow(Long resultId) {
+        TestResult result = testResultMapper.selectById(resultId);
+        if (result == null) {
+            throw new NotFoundException("result not found");
+        }
+        return result;
+    }
+
+    private void ensureReportable(TestResult result) {
+        if ("failed".equals(result.getStatus())) {
+            throw new IllegalArgumentException("failed result cannot generate report");
+        }
     }
 
     public List<ReportResponse> listReports(Long projectId) {

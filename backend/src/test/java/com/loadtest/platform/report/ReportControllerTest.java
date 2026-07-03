@@ -57,6 +57,12 @@ class ReportControllerTest {
     private TestResultImageMapper testResultImageMapper;
 
     @Autowired
+    private TestReportMapper testReportMapper;
+
+    @Autowired
+    private ReportService reportService;
+
+    @Autowired
     private ProjectMapper projectMapper;
 
     @Autowired
@@ -66,27 +72,37 @@ class ReportControllerTest {
     private TestExecutionMapper testExecutionMapper;
 
     @Test
-    void generatesReportFromSuccessResultWithMarkdownAndHtml() throws Exception {
+    void createsPendingReportAndCompletesItInBackground() throws Exception {
         Long resultId = createResult("success");
         addMetric(resultId, "jmeter", "ART", "all", "p95", BigDecimal.valueOf(850), "ms", "normal");
         addMetric(resultId, "jmeter", "TPS", "all", "avg", BigDecimal.valueOf(120), "req/s", "normal");
         addMetric(resultId, "cpu", "CPU usage", "10.0.0.11:9100", "max", BigDecimal.valueOf(65), "%", "normal");
 
-        mockMvc.perform(post("/api/results/{resultId}/reports", resultId))
+        Long reportId = extractId(mockMvc.perform(post("/api/results/{resultId}/reports", resultId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.reportType").value("single_result_text"))
-                .andExpect(jsonPath("$.data.status").value("success"))
+                .andExpect(jsonPath("$.data.status").value("pending"))
                 .andExpect(jsonPath("$.data.resultIdsJson").value("[" + resultId + "]"))
-                .andExpect(jsonPath("$.data.contentMarkdown", containsString("## 1. 测试概述")))
-                .andExpect(jsonPath("$.data.contentMarkdown", containsString("## 9. 后续建议")))
-                .andExpect(jsonPath("$.data.contentHtml", containsString("<h2>1. 测试概述</h2>")))
-                .andExpect(jsonPath("$.data.contentHtml", containsString("<table>")));
+                .andExpect(jsonPath("$.data.contentMarkdown").doesNotExist())
+                .andExpect(jsonPath("$.data.contentHtml").doesNotExist())
+                .andExpect(jsonPath("$.data.errorMessage").doesNotExist())
+                .andReturn()
+                .getResponse()
+                .getContentAsString());
+
+        reportService.runOnePendingReport();
+
+        mockMvc.perform(get("/api/reports/{reportId}", reportId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("success"))
+                .andExpect(jsonPath("$.data.contentMarkdown").isNotEmpty())
+                .andExpect(jsonPath("$.data.contentHtml").isNotEmpty())
+                .andExpect(jsonPath("$.data.finishedAt").exists());
 
         mockMvc.perform(get("/api/projects/{projectId}/reports", testResultMapper.selectById(resultId).getProjectId()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.length()").value(1));
     }
-
     @Test
     void generatesReadableAnalysisWithServerAndPodResourceSummary() throws Exception {
         Long resultId = createResult("success");
@@ -110,7 +126,9 @@ class ReportControllerTest {
         addMetric(resultId, "k8s_pod_network", "Pod Network receive", "default/order-api-1", "avg", BigDecimal.valueOf(1.24), "MB/s", "normal");
         addMetric(resultId, "k8s_pod_network", "Pod Network transmit", "default/order-api-1", "avg", BigDecimal.valueOf(2.56), "MB/s", "normal");
 
-        mockMvc.perform(post("/api/results/{resultId}/reports", resultId))
+        Long reportId = createAndRunReport(resultId);
+
+        mockMvc.perform(get("/api/reports/{reportId}", reportId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.contentMarkdown", containsString("## 8. 自动分析结论")))
                 .andExpect(jsonPath("$.data.contentMarkdown", containsString("## 6. Pod 资源表现")))
@@ -152,7 +170,9 @@ class ReportControllerTest {
         Long resultId = createResult("partial_success");
         addMetric(resultId, "jmeter", "ART", "all", "p95", BigDecimal.valueOf(900), "ms", "normal");
 
-        mockMvc.perform(post("/api/results/{resultId}/reports", resultId))
+        Long reportId = createAndRunReport(resultId);
+
+        mockMvc.perform(get("/api/reports/{reportId}", reportId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.contentMarkdown", containsString("资源指标不完整")))
                 .andExpect(jsonPath("$.data.contentHtml", containsString("资源指标不完整")));
@@ -164,7 +184,9 @@ class ReportControllerTest {
         addMetric(resultId, "jmeter", "ART", "all", "p95", BigDecimal.valueOf(850), "ms", "normal");
         addImage(resultId, "TPS 趋势", 7);
 
-        mockMvc.perform(post("/api/results/{resultId}/reports", resultId))
+        Long reportId = createAndRunReport(resultId);
+
+        mockMvc.perform(get("/api/reports/{reportId}", reportId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.contentMarkdown", containsString("Grafana 图表归档")))
                 .andExpect(jsonPath("$.data.contentMarkdown", containsString("TPS 趋势")))
@@ -177,12 +199,7 @@ class ReportControllerTest {
         Long resultId = createResult("success");
         addMetric(resultId, "jmeter", "ART", "all", "p95", BigDecimal.valueOf(850), "ms", "normal");
 
-        String response = mockMvc.perform(post("/api/results/{resultId}/reports", resultId))
-                .andExpect(status().isOk())
-                .andReturn()
-                .getResponse()
-                .getContentAsString();
-        Long reportId = extractId(response);
+        Long reportId = createAndRunReport(resultId);
 
         mockMvc.perform(get("/api/reports/{reportId}", reportId))
                 .andExpect(status().isOk())
@@ -194,11 +211,7 @@ class ReportControllerTest {
     void deletesReport() throws Exception {
         Long resultId = createResult("success");
         addMetric(resultId, "jmeter", "ART", "all", "p95", BigDecimal.valueOf(850), "ms", "normal");
-        Long reportId = extractId(mockMvc.perform(post("/api/results/{resultId}/reports", resultId))
-                .andExpect(status().isOk())
-                .andReturn()
-                .getResponse()
-                .getContentAsString());
+        Long reportId = createAndRunReport(resultId);
 
         mockMvc.perform(delete("/api/reports/{reportId}", reportId))
                 .andExpect(status().isOk())
@@ -206,6 +219,39 @@ class ReportControllerTest {
 
         mockMvc.perform(get("/api/reports/{reportId}", reportId))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void marksPendingReportFailedWhenResultIdsJsonIsInvalid() {
+        String now = OffsetDateTime.now().toString();
+        Long resultId = createResult("success");
+        TestResult result = testResultMapper.selectById(resultId);
+        TestReport report = new TestReport();
+        report.setProjectId(result.getProjectId());
+        report.setTitle("invalid");
+        report.setReportType("single_result_text");
+        report.setStatus("pending");
+        report.setResultIdsJson("invalid");
+        report.setCreatedAt(now);
+        report.setUpdatedAt(now);
+        testReportMapper.insert(report);
+
+        reportService.runOnePendingReport();
+
+        TestReport updated = testReportMapper.selectById(report.getId());
+        org.assertj.core.api.Assertions.assertThat(updated.getStatus()).isEqualTo("failed");
+        org.assertj.core.api.Assertions.assertThat(updated.getErrorMessage()).isNotBlank();
+        org.assertj.core.api.Assertions.assertThat(updated.getFinishedAt()).isNotBlank();
+    }
+
+    private Long createAndRunReport(Long resultId) throws Exception {
+        Long reportId = extractId(mockMvc.perform(post("/api/results/{resultId}/reports", resultId))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString());
+        reportService.runOnePendingReport();
+        return reportId;
     }
 
     private Long createResult(String status) {
