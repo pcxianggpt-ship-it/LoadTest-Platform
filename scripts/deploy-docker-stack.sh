@@ -212,6 +212,8 @@ deploy_grafana() {
     -p "${GRAFANA_PORT}:3000" \
     -v "${BASE_DIR}/grafana-data:/var/lib/grafana" \
     -v /etc/localtime:/etc/localtime:ro \
+    -e GF_RENDERING_SERVER_URL="http://grafana-renderer:8081/render" \
+    -e GF_RENDERING_CALLBACK_URL="http://grafana:3000/" \
     --memory=1g \
     --cpus=1 \
     "${GRAFANA_IMAGE}"
