@@ -271,6 +271,49 @@ class ReportControllerTest {
     }
 
     @Test
+    void marksExpiredRunningReportFailedAndProcessesPendingReport() {
+        Long runningResultId = createResult("success");
+        Long pendingResultId = createResult("success");
+        String now = OffsetDateTime.now().toString();
+        TestReport runningReport = createPendingReport(runningResultId, "running", now);
+        runningReport.setStatus("running");
+        runningReport.setStartedAt(OffsetDateTime.now().minusMinutes(31).toString());
+        testReportMapper.updateById(runningReport);
+        TestReport pendingReport = createPendingReport(pendingResultId, "pending", now);
+
+        reportService.runOnePendingReport();
+
+        TestReport updatedRunning = testReportMapper.selectById(runningReport.getId());
+        TestReport updatedPending = testReportMapper.selectById(pendingReport.getId());
+        assertThat(updatedRunning.getStatus()).isEqualTo("failed");
+        assertThat(updatedRunning.getErrorMessage()).isEqualTo("报告生成超时，请重新生成");
+        assertThat(updatedRunning.getFinishedAt()).isNotBlank();
+        assertThat(updatedPending.getStatus()).isEqualTo("success");
+        assertThat(updatedPending.getStartedAt()).isNotBlank();
+        assertThat(updatedPending.getFinishedAt()).isNotBlank();
+    }
+
+    @Test
+    void treatsRunningReportWithInvalidStartedAtAsExpired() {
+        Long runningResultId = createResult("success");
+        Long pendingResultId = createResult("success");
+        String now = OffsetDateTime.now().toString();
+        TestReport runningReport = createPendingReport(runningResultId, "running", now);
+        runningReport.setStatus("running");
+        runningReport.setStartedAt("invalid");
+        testReportMapper.updateById(runningReport);
+        TestReport pendingReport = createPendingReport(pendingResultId, "pending", now);
+
+        reportService.runOnePendingReport();
+
+        TestReport updatedRunning = testReportMapper.selectById(runningReport.getId());
+        TestReport updatedPending = testReportMapper.selectById(pendingReport.getId());
+        assertThat(updatedRunning.getStatus()).isEqualTo("failed");
+        assertThat(updatedRunning.getFinishedAt()).isNotBlank();
+        assertThat(updatedPending.getStatus()).isEqualTo("success");
+    }
+
+    @Test
     void processesEarliestPendingReportCreatedAtFirst() {
         Long firstResultId = createResult("success");
         Long secondResultId = createResult("success");
@@ -289,6 +332,29 @@ class ReportControllerTest {
         assertThat(updatedSecond.getFinishedAt()).isNotBlank();
 
         testReportMapper.deleteById(firstReport.getId());
+    }
+
+    @Test
+    void processesPendingReportWithSameCreatedAtByIdAsc() {
+        Long firstResultId = createResult("success");
+        Long secondResultId = createResult("success");
+        String createdAt = OffsetDateTime.now().toString();
+        TestReport firstReport = createPendingReport(firstResultId, "first", createdAt);
+        TestReport secondReport = createPendingReport(secondResultId, "second", createdAt);
+
+        reportService.runOnePendingReport();
+
+        TestReport updatedFirst = testReportMapper.selectById(firstReport.getId());
+        TestReport updatedSecond = testReportMapper.selectById(secondReport.getId());
+        assertThat(firstReport.getId()).isLessThan(secondReport.getId());
+        assertThat(updatedFirst.getStatus()).isEqualTo("success");
+        assertThat(updatedFirst.getStartedAt()).isNotBlank();
+        assertThat(updatedFirst.getFinishedAt()).isNotBlank();
+        assertThat(updatedSecond.getStatus()).isEqualTo("pending");
+        assertThat(updatedSecond.getStartedAt()).isNull();
+        assertThat(updatedSecond.getFinishedAt()).isNull();
+
+        testReportMapper.deleteById(secondReport.getId());
     }
 
     private Long createAndRunReport(Long resultId) throws Exception {

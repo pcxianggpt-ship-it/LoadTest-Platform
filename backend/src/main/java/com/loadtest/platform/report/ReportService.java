@@ -20,6 +20,7 @@ import com.loadtest.platform.task.TestTaskMapper;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.OffsetDateTime;
+import java.time.format.DateTimeParseException;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -39,6 +40,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 public class ReportService {
 
     private static final String REPORT_TYPE = "single_result_text";
+    private static final int RUNNING_TIMEOUT_MINUTES = 30;
+    private static final String RUNNING_TIMEOUT_MESSAGE = "报告生成超时，请重新生成";
 
     private final TestReportMapper testReportMapper;
     private final TestResultMapper testResultMapper;
@@ -82,6 +85,7 @@ public class ReportService {
 
     private TestReport claimNextPendingReport() {
         return transactionTemplate.execute(status -> {
+            markExpiredRunningReports();
             if (hasRunningReport()) {
                 return null;
             }
@@ -97,6 +101,36 @@ public class ReportService {
         LambdaQueryWrapper<TestReport> wrapper = new LambdaQueryWrapper<TestReport>()
                 .eq(TestReport::getStatus, "running");
         return testReportMapper.selectCount(wrapper) > 0;
+    }
+
+    private void markExpiredRunningReports() {
+        OffsetDateTime timeoutBefore = OffsetDateTime.now().minusMinutes(RUNNING_TIMEOUT_MINUTES);
+        List<TestReport> runningReports = testReportMapper.selectList(new LambdaQueryWrapper<TestReport>()
+                .eq(TestReport::getStatus, "running"));
+        for (TestReport report : runningReports) {
+            if (isRunningExpired(report, timeoutBefore)) {
+                String now = OffsetDateTime.now().toString();
+                LambdaUpdateWrapper<TestReport> wrapper = new LambdaUpdateWrapper<TestReport>()
+                        .set(TestReport::getStatus, "failed")
+                        .set(TestReport::getErrorMessage, RUNNING_TIMEOUT_MESSAGE)
+                        .set(TestReport::getFinishedAt, now)
+                        .set(TestReport::getUpdatedAt, now)
+                        .eq(TestReport::getId, report.getId())
+                        .eq(TestReport::getStatus, "running");
+                testReportMapper.update(null, wrapper);
+            }
+        }
+    }
+
+    private boolean isRunningExpired(TestReport report, OffsetDateTime timeoutBefore) {
+        if (report.getStartedAt() == null || report.getStartedAt().isBlank()) {
+            return true;
+        }
+        try {
+            return OffsetDateTime.parse(report.getStartedAt()).isBefore(timeoutBefore);
+        } catch (DateTimeParseException exception) {
+            return true;
+        }
     }
 
     private TestReport nextPendingReport() {
@@ -138,14 +172,15 @@ public class ReportService {
     private void markSuccess(Long reportId, String markdown, String html) {
         transactionTemplate.executeWithoutResult(status -> {
             String now = OffsetDateTime.now().toString();
-            TestReport update = new TestReport();
-            update.setId(reportId);
-            update.setStatus("success");
-            update.setContentMarkdown(markdown);
-            update.setContentHtml(html);
-            update.setFinishedAt(now);
-            update.setUpdatedAt(now);
-            testReportMapper.updateById(update);
+            LambdaUpdateWrapper<TestReport> wrapper = new LambdaUpdateWrapper<TestReport>()
+                    .set(TestReport::getStatus, "success")
+                    .set(TestReport::getContentMarkdown, markdown)
+                    .set(TestReport::getContentHtml, html)
+                    .set(TestReport::getFinishedAt, now)
+                    .set(TestReport::getUpdatedAt, now)
+                    .eq(TestReport::getId, reportId)
+                    .eq(TestReport::getStatus, "running");
+            testReportMapper.update(null, wrapper);
         });
     }
 
@@ -153,13 +188,14 @@ public class ReportService {
         String now = OffsetDateTime.now().toString();
         String message = exception.getMessage() == null ? exception.getClass().getSimpleName() : exception.getMessage();
         transactionTemplate.executeWithoutResult(status -> {
-            TestReport update = new TestReport();
-            update.setId(reportId);
-            update.setStatus("failed");
-            update.setErrorMessage(message);
-            update.setFinishedAt(now);
-            update.setUpdatedAt(now);
-            testReportMapper.updateById(update);
+            LambdaUpdateWrapper<TestReport> wrapper = new LambdaUpdateWrapper<TestReport>()
+                    .set(TestReport::getStatus, "failed")
+                    .set(TestReport::getErrorMessage, message)
+                    .set(TestReport::getFinishedAt, now)
+                    .set(TestReport::getUpdatedAt, now)
+                    .eq(TestReport::getId, reportId)
+                    .eq(TestReport::getStatus, "running");
+            testReportMapper.update(null, wrapper);
         });
     }
 
