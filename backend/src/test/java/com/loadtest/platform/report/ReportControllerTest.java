@@ -2,6 +2,7 @@ package com.loadtest.platform.report;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -98,6 +99,10 @@ class ReportControllerTest {
                 .andExpect(jsonPath("$.data.contentMarkdown").isNotEmpty())
                 .andExpect(jsonPath("$.data.contentHtml").isNotEmpty())
                 .andExpect(jsonPath("$.data.finishedAt").exists());
+
+        TestReport updated = testReportMapper.selectById(reportId);
+        assertThat(updated.getStartedAt()).isNotBlank();
+        assertThat(updated.getFinishedAt()).isNotBlank();
 
         mockMvc.perform(get("/api/projects/{projectId}/reports", testResultMapper.selectById(resultId).getProjectId()))
                 .andExpect(status().isOk())
@@ -239,9 +244,49 @@ class ReportControllerTest {
         reportService.runOnePendingReport();
 
         TestReport updated = testReportMapper.selectById(report.getId());
-        org.assertj.core.api.Assertions.assertThat(updated.getStatus()).isEqualTo("failed");
-        org.assertj.core.api.Assertions.assertThat(updated.getErrorMessage()).isNotBlank();
-        org.assertj.core.api.Assertions.assertThat(updated.getFinishedAt()).isNotBlank();
+        assertThat(updated.getStatus()).isEqualTo("failed");
+        assertThat(updated.getErrorMessage()).isNotBlank();
+        assertThat(updated.getFinishedAt()).isNotBlank();
+    }
+
+    @Test
+    void skipsPendingReportWhenAnotherReportIsRunning() {
+        Long runningResultId = createResult("success");
+        Long pendingResultId = createResult("success");
+        TestReport runningReport = createPendingReport(runningResultId, "running", OffsetDateTime.now().toString());
+        runningReport.setStatus("running");
+        runningReport.setStartedAt(OffsetDateTime.now().toString());
+        testReportMapper.updateById(runningReport);
+        TestReport pendingReport = createPendingReport(pendingResultId, "pending", OffsetDateTime.now().toString());
+
+        reportService.runOnePendingReport();
+
+        TestReport updatedPending = testReportMapper.selectById(pendingReport.getId());
+        assertThat(updatedPending.getStatus()).isEqualTo("pending");
+        assertThat(updatedPending.getStartedAt()).isNull();
+        assertThat(updatedPending.getFinishedAt()).isNull();
+
+        testReportMapper.deleteById(runningReport.getId());
+        testReportMapper.deleteById(pendingReport.getId());
+    }
+
+    @Test
+    void processesEarliestPendingReportIdFirst() {
+        Long firstResultId = createResult("success");
+        Long secondResultId = createResult("success");
+        TestReport firstReport = createPendingReport(firstResultId, "first", OffsetDateTime.now().plusMinutes(1).toString());
+        TestReport secondReport = createPendingReport(secondResultId, "second", OffsetDateTime.now().minusMinutes(1).toString());
+
+        reportService.runOnePendingReport();
+
+        TestReport updatedFirst = testReportMapper.selectById(firstReport.getId());
+        TestReport updatedSecond = testReportMapper.selectById(secondReport.getId());
+        assertThat(updatedFirst.getStatus()).isEqualTo("success");
+        assertThat(updatedFirst.getStartedAt()).isNotBlank();
+        assertThat(updatedFirst.getFinishedAt()).isNotBlank();
+        assertThat(updatedSecond.getStatus()).isEqualTo("pending");
+
+        testReportMapper.deleteById(secondReport.getId());
     }
 
     private Long createAndRunReport(Long resultId) throws Exception {
@@ -252,6 +297,20 @@ class ReportControllerTest {
                 .getContentAsString());
         reportService.runOnePendingReport();
         return reportId;
+    }
+
+    private TestReport createPendingReport(Long resultId, String title, String createdAt) {
+        TestResult result = testResultMapper.selectById(resultId);
+        TestReport report = new TestReport();
+        report.setProjectId(result.getProjectId());
+        report.setTitle(title);
+        report.setReportType("single_result_text");
+        report.setStatus("pending");
+        report.setResultIdsJson("[" + resultId + "]");
+        report.setCreatedAt(createdAt);
+        report.setUpdatedAt(createdAt);
+        testReportMapper.insert(report);
+        return report;
     }
 
     private Long createResult(String status) {

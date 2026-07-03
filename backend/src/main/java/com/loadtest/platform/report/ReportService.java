@@ -1,6 +1,7 @@
 package com.loadtest.platform.report;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -31,7 +32,7 @@ import org.commonmark.node.Node;
 import org.commonmark.parser.Parser;
 import org.commonmark.renderer.html.HtmlRenderer;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 @Service
 @RequiredArgsConstructor
@@ -47,6 +48,7 @@ public class ReportService {
     private final TestTaskMapper testTaskMapper;
     private final ObjectMapper objectMapper;
     private final DeletionService deletionService;
+    private final TransactionTemplate transactionTemplate;
 
     public ReportResponse generateReport(Long resultId) {
         TestResult result = resultOrThrow(resultId);
@@ -65,22 +67,30 @@ public class ReportService {
         return ReportResponse.from(report);
     }
 
-    @Transactional
     public void runOnePendingReport() {
-        if (hasRunningReport()) {
-            return;
-        }
-        TestReport report = nextPendingReport();
+        TestReport report = claimNextPendingReport();
         if (report == null) {
             return;
         }
 
-        markRunning(report);
         try {
-            completeReport(report);
+            completeReport(report.getId());
         } catch (Exception exception) {
-            markFailed(report, exception);
+            markFailed(report.getId(), exception);
         }
+    }
+
+    private TestReport claimNextPendingReport() {
+        return transactionTemplate.execute(status -> {
+            if (hasRunningReport()) {
+                return null;
+            }
+            TestReport report = nextPendingReport();
+            if (report == null) {
+                return null;
+            }
+            return markRunning(report.getId()) ? testReportMapper.selectById(report.getId()) : null;
+        });
     }
 
     private boolean hasRunningReport() {
@@ -92,22 +102,28 @@ public class ReportService {
     private TestReport nextPendingReport() {
         LambdaQueryWrapper<TestReport> wrapper = new LambdaQueryWrapper<TestReport>()
                 .eq(TestReport::getStatus, "pending")
-                .orderByAsc(TestReport::getCreatedAt)
                 .orderByAsc(TestReport::getId)
                 .last("LIMIT 1");
         return testReportMapper.selectOne(wrapper);
     }
 
-    private void markRunning(TestReport report) {
+    private boolean markRunning(Long reportId) {
         String now = OffsetDateTime.now().toString();
-        report.setStatus("running");
-        report.setStartedAt(now);
-        report.setErrorMessage(null);
-        report.setUpdatedAt(now);
-        testReportMapper.updateById(report);
+        LambdaUpdateWrapper<TestReport> wrapper = new LambdaUpdateWrapper<TestReport>()
+                .set(TestReport::getStatus, "running")
+                .set(TestReport::getStartedAt, now)
+                .set(TestReport::getErrorMessage, null)
+                .set(TestReport::getUpdatedAt, now)
+                .eq(TestReport::getId, reportId)
+                .eq(TestReport::getStatus, "pending");
+        return testReportMapper.update(null, wrapper) == 1;
     }
 
-    private void completeReport(TestReport report) {
+    private void completeReport(Long reportId) {
+        TestReport report = testReportMapper.selectById(reportId);
+        if (report == null) {
+            throw new NotFoundException("report not found");
+        }
         Long resultId = reportResultId(report);
         TestResult result = resultOrThrow(resultId);
         ensureReportable(result);
@@ -115,24 +131,35 @@ public class ReportService {
         List<TestResultImage> images = images(resultId);
         String markdown = buildMarkdown(result, metrics, images);
         String html = renderHtml(markdown);
-        String now = OffsetDateTime.now().toString();
-
-        report.setStatus("success");
-        report.setContentMarkdown(markdown);
-        report.setContentHtml(html);
-        report.setFinishedAt(now);
-        report.setUpdatedAt(now);
-        testReportMapper.updateById(report);
+        markSuccess(reportId, markdown, html);
     }
 
-    private void markFailed(TestReport report, Exception exception) {
+    private void markSuccess(Long reportId, String markdown, String html) {
+        transactionTemplate.executeWithoutResult(status -> {
+            String now = OffsetDateTime.now().toString();
+            TestReport update = new TestReport();
+            update.setId(reportId);
+            update.setStatus("success");
+            update.setContentMarkdown(markdown);
+            update.setContentHtml(html);
+            update.setFinishedAt(now);
+            update.setUpdatedAt(now);
+            testReportMapper.updateById(update);
+        });
+    }
+
+    private void markFailed(Long reportId, Exception exception) {
         String now = OffsetDateTime.now().toString();
         String message = exception.getMessage() == null ? exception.getClass().getSimpleName() : exception.getMessage();
-        report.setStatus("failed");
-        report.setErrorMessage(message);
-        report.setFinishedAt(now);
-        report.setUpdatedAt(now);
-        testReportMapper.updateById(report);
+        transactionTemplate.executeWithoutResult(status -> {
+            TestReport update = new TestReport();
+            update.setId(reportId);
+            update.setStatus("failed");
+            update.setErrorMessage(message);
+            update.setFinishedAt(now);
+            update.setUpdatedAt(now);
+            testReportMapper.updateById(update);
+        });
     }
 
     private Long reportResultId(TestReport report) {
