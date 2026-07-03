@@ -1,17 +1,22 @@
 #!/bin/sh
 set -eu
 
-RUNTIME="${RUNTIME:-nerdctl}"
+RUNTIME="${RUNTIME:-docker}"
 BASE_DIR="${BASE_DIR:-/opt/stress-test}"
 NETWORK_NAME="${NETWORK_NAME:-stress-test-net}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+case "${SCRIPT_DIR}" in
+  */scripts) PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)" ;;
+  *) PROJECT_ROOT="${SCRIPT_DIR}" ;;
+esac
 IMAGE_DIR="${IMAGE_DIR:-${PROJECT_ROOT}/images}"
 LOAD_IMAGES="${LOAD_IMAGES:-true}"
+ENABLE_JMETER="${ENABLE_JMETER:-auto}"
+JMETER_DEPLOYED=false
 
-INFLUXDB_IMAGE="${INFLUXDB_IMAGE:-10.33.1.9:5000/performance-testing/influxdb:1.8.10}"
-PROMETHEUS_IMAGE="${PROMETHEUS_IMAGE:-10.33.1.9:5000/performance-testing/prometheus:latest}"
-GRAFANA_IMAGE="${GRAFANA_IMAGE:-10.33.1.9:5000/performance-testing/grafana-enterprise:2.0}"
+INFLUXDB_IMAGE="${INFLUXDB_IMAGE:-influxdb:1.8.10}"
+PROMETHEUS_IMAGE="${PROMETHEUS_IMAGE:-bitnami/prometheus:latest}"
+GRAFANA_IMAGE="${GRAFANA_IMAGE:-grafana/grafana-enterprise:latest}"
 GRAFANA_RENDERER_IMAGE="${GRAFANA_RENDERER_IMAGE:-grafana/grafana-image-renderer:v5.3.0}"
 JMETER_IMAGE="${JMETER_IMAGE:-10.33.1.9:5000/stress-test/jmeter:5.2.1}"
 
@@ -41,6 +46,7 @@ Environment overrides:
   NETWORK_NAME=${NETWORK_NAME}
   IMAGE_DIR=${IMAGE_DIR}
   LOAD_IMAGES=${LOAD_IMAGES}
+  ENABLE_JMETER=${ENABLE_JMETER}
   INFLUXDB_IMAGE=${INFLUXDB_IMAGE}
   PROMETHEUS_IMAGE=${PROMETHEUS_IMAGE}
   GRAFANA_IMAGE=${GRAFANA_IMAGE}
@@ -73,6 +79,10 @@ container_exists() {
 
 network_exists() {
   "${RUNTIME}" network ls --format '{{.Name}}' | grep -Fxq "${NETWORK_NAME}"
+}
+
+image_exists() {
+  "${RUNTIME}" image inspect "$1" >/dev/null 2>&1
 }
 
 load_images() {
@@ -110,6 +120,30 @@ load_images() {
   fi
 }
 
+ensure_prometheus_config() {
+  if [ -f "${BASE_DIR}/prometheus-conf/prometheus.yml" ]; then
+    return
+  fi
+
+  prometheus_config_file="$(mktemp)"
+  cat > "${prometheus_config_file}" <<EOF
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets:
+          - localhost:9090
+EOF
+
+  run_as_root cp "${prometheus_config_file}" "${BASE_DIR}/prometheus-conf/prometheus.yml"
+  run_as_root chown 1001:1001 "${BASE_DIR}/prometheus-conf/prometheus.yml"
+  run_as_root chmod 644 "${BASE_DIR}/prometheus-conf/prometheus.yml"
+  rm -f "${prometheus_config_file}"
+}
+
 ensure_directories() {
   run_as_root mkdir -p \
     "${BASE_DIR}/influxdb-data" \
@@ -121,6 +155,7 @@ ensure_directories() {
   run_as_root chown -R 1001:1001 "${BASE_DIR}/prometheus-data" "${BASE_DIR}/prometheus-conf"
   run_as_root chown -R 472:472 "${BASE_DIR}/grafana-data"
   run_as_root chmod -R 755 "${BASE_DIR}/grafana-data"
+  ensure_prometheus_config
 
   run_as_root rm -f "${BASE_DIR}/prometheus-data/lock"
 }
@@ -195,6 +230,20 @@ deploy_grafana_renderer() {
 }
 
 deploy_jmeter() {
+  case "${ENABLE_JMETER}" in
+    false|no|0)
+      echo "JMeter deployment skipped because ENABLE_JMETER=${ENABLE_JMETER}"
+      return
+      ;;
+    auto)
+      if ! image_exists "${JMETER_IMAGE}"; then
+        echo "JMeter image not found locally, skipped: ${JMETER_IMAGE}"
+        echo "Put the JMeter image archive in ${IMAGE_DIR}, or set ENABLE_JMETER=true to pull it."
+        return
+      fi
+      ;;
+  esac
+
   remove_container_if_exists jmeter
   "${RUNTIME}" run -d \
     --name jmeter \
@@ -206,6 +255,7 @@ deploy_jmeter() {
     --memory=2g \
     --cpus=1 \
     "${JMETER_IMAGE}"
+  JMETER_DEPLOYED=true
 }
 
 deploy_all() {
@@ -268,8 +318,14 @@ Deployment finished.
 Grafana:       http://<server-ip>:${GRAFANA_PORT}
 Prometheus:    http://<server-ip>:${PROMETHEUS_PORT}
 InfluxDB:      http://<server-ip>:${INFLUXDB_PORT}
-JMeter:        http://<server-ip>:${JMETER_HOST_PORT}
 Renderer:      http://<server-ip>:${GRAFANA_RENDERER_PORT}
+EOF
+  if [ "${JMETER_DEPLOYED}" = "true" ]; then
+    echo "JMeter:        http://<server-ip>:${JMETER_HOST_PORT}"
+  else
+    echo "JMeter:        skipped (${JMETER_IMAGE} not deployed)"
+  fi
+  cat <<EOF
 
 Internal service URLs:
   InfluxDB:    http://influxdb:8086
