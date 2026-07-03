@@ -271,7 +271,7 @@ class ReportControllerTest {
     }
 
     @Test
-    void processesEarliestPendingReportIdFirst() {
+    void processesEarliestPendingReportCreatedAtFirst() {
         Long firstResultId = createResult("success");
         Long secondResultId = createResult("success");
         TestReport firstReport = createPendingReport(firstResultId, "first", OffsetDateTime.now().plusMinutes(1).toString());
@@ -281,12 +281,14 @@ class ReportControllerTest {
 
         TestReport updatedFirst = testReportMapper.selectById(firstReport.getId());
         TestReport updatedSecond = testReportMapper.selectById(secondReport.getId());
-        assertThat(updatedFirst.getStatus()).isEqualTo("success");
-        assertThat(updatedFirst.getStartedAt()).isNotBlank();
-        assertThat(updatedFirst.getFinishedAt()).isNotBlank();
-        assertThat(updatedSecond.getStatus()).isEqualTo("pending");
+        assertThat(updatedFirst.getStatus()).isEqualTo("pending");
+        assertThat(updatedFirst.getStartedAt()).isNull();
+        assertThat(updatedFirst.getFinishedAt()).isNull();
+        assertThat(updatedSecond.getStatus()).isEqualTo("success");
+        assertThat(updatedSecond.getStartedAt()).isNotBlank();
+        assertThat(updatedSecond.getFinishedAt()).isNotBlank();
 
-        testReportMapper.deleteById(secondReport.getId());
+        testReportMapper.deleteById(firstReport.getId());
     }
 
     private Long createAndRunReport(Long resultId) throws Exception {

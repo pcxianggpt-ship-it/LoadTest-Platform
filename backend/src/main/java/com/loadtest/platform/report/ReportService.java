@@ -102,6 +102,7 @@ public class ReportService {
     private TestReport nextPendingReport() {
         LambdaQueryWrapper<TestReport> wrapper = new LambdaQueryWrapper<TestReport>()
                 .eq(TestReport::getStatus, "pending")
+                .orderByAsc(TestReport::getCreatedAt)
                 .orderByAsc(TestReport::getId)
                 .last("LIMIT 1");
         return testReportMapper.selectOne(wrapper);
