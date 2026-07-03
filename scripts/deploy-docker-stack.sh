@@ -1,14 +1,10 @@
-#!/usr/bin/env bash
-if [ -z "${BASH_VERSION:-}" ]; then
-  exec bash "$0" "$@"
-fi
-
-set -euo pipefail
+#!/bin/sh
+set -eu
 
 RUNTIME="${RUNTIME:-nerdctl}"
 BASE_DIR="${BASE_DIR:-/opt/stress-test}"
 NETWORK_NAME="${NETWORK_NAME:-stress-test-net}"
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 IMAGE_DIR="${IMAGE_DIR:-${PROJECT_ROOT}/images}"
 LOAD_IMAGES="${LOAD_IMAGES:-true}"
@@ -54,7 +50,7 @@ EOF
 }
 
 run_as_root() {
-  if [[ "${EUID}" -eq 0 ]]; then
+  if [ "$(id -u)" -eq 0 ]; then
     "$@"
   elif command -v sudo >/dev/null 2>&1; then
     sudo "$@"
@@ -80,31 +76,35 @@ network_exists() {
 }
 
 load_images() {
-  if [[ "${LOAD_IMAGES}" != "true" ]]; then
+  if [ "${LOAD_IMAGES}" != "true" ]; then
     echo "Image load skipped because LOAD_IMAGES=${LOAD_IMAGES}"
     return
   fi
-  if [[ ! -d "${IMAGE_DIR}" ]]; then
+  if [ ! -d "${IMAGE_DIR}" ]; then
     echo "Image directory not found: ${IMAGE_DIR}" >&2
     exit 1
   fi
 
-  local found=false
-  local image_file
-  while IFS= read -r -d '' image_file; do
-    found=true
-    echo "Loading image archive: ${image_file}"
-    "${RUNTIME}" load -i "${image_file}"
-  done < <(find "${IMAGE_DIR}" -maxdepth 1 -type f \( \
+  found=false
+  image_list_file="$(mktemp)"
+  find "${IMAGE_DIR}" -maxdepth 1 -type f \( \
       -name "*.tar" -o \
       -name "*.tar.gz" -o \
       -name "*.tgz" -o \
       -name "*.tar.xz" -o \
       -name "*.txz" -o \
       -name "*.tar.zst" \
-    \) -print0 | sort -z)
+    \) | sort > "${image_list_file}"
 
-  if [[ "${found}" != "true" ]]; then
+  while IFS= read -r image_file; do
+    [ -n "${image_file}" ] || continue
+    found=true
+    echo "Loading image archive: ${image_file}"
+    "${RUNTIME}" load -i "${image_file}"
+  done < "${image_list_file}"
+  rm -f "${image_list_file}"
+
+  if [ "${found}" != "true" ]; then
     echo "No image archives found in ${IMAGE_DIR}" >&2
     exit 1
   fi
@@ -133,7 +133,7 @@ ensure_network() {
 }
 
 remove_container_if_exists() {
-  local name="$1"
+  name="$1"
   if container_exists "${name}"; then
     "${RUNTIME}" rm -f "${name}"
   fi
@@ -211,6 +211,8 @@ deploy_jmeter() {
 deploy_all() {
   need_command "${RUNTIME}"
   need_command find
+  need_command mktemp
+  need_command sort
   ensure_directories
   load_images
   ensure_network
@@ -255,7 +257,7 @@ status() {
 
 show_logs() {
   need_command "${RUNTIME}"
-  local service="${SERVICE:-grafana}"
+  service="${SERVICE:-grafana}"
   "${RUNTIME}" logs -f "${service}"
 }
 
@@ -276,7 +278,7 @@ EOF
 }
 
 main() {
-  local command="${1:-deploy}"
+  command="${1:-deploy}"
   case "${command}" in
     deploy) deploy_all ;;
     start) start_all ;;
