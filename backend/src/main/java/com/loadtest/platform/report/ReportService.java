@@ -15,6 +15,7 @@ import com.loadtest.platform.result.TestResultImageMapper;
 import com.loadtest.platform.result.TestResultMapper;
 import com.loadtest.platform.result.TestResultMetric;
 import com.loadtest.platform.result.TestResultMetricMapper;
+import com.loadtest.platform.result.ResultImageService;
 import com.loadtest.platform.task.TestTask;
 import com.loadtest.platform.task.TestTaskMapper;
 import java.math.BigDecimal;
@@ -57,6 +58,7 @@ public class ReportService {
     private final ObjectMapper objectMapper;
     private final DeletionService deletionService;
     private final TransactionTemplate transactionTemplate;
+    private final ResultImageService resultImageService;
 
     public ReportResponse generateReport(Long resultId) {
         TestResult result = resultOrThrow(resultId);
@@ -176,6 +178,7 @@ public class ReportService {
         TestResult result = resultOrThrow(resultId);
         ensureReportable(result);
         List<TestResultMetric> metrics = metrics(resultId);
+        resultImageService.exportConfiguredGrafanaImages(resultId);
         List<TestResultImage> images = images(resultId);
         String markdown = buildMarkdown(result, metrics, images);
         String html = renderHtml(markdown);

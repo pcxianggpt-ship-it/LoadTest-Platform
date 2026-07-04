@@ -3,16 +3,26 @@ package com.loadtest.platform.report;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.loadtest.platform.execution.TestExecution;
 import com.loadtest.platform.execution.TestExecutionMapper;
+import com.loadtest.platform.grafana.GrafanaImageClient;
+import com.loadtest.platform.grafana.GrafanaImageData;
+import com.loadtest.platform.grafana.GrafanaRenderRequest;
 import com.loadtest.platform.project.Project;
 import com.loadtest.platform.project.ProjectMapper;
+import com.loadtest.platform.projectconfig.ProjectDatasource;
+import com.loadtest.platform.projectconfig.ProjectDatasourceMapper;
 import com.loadtest.platform.result.TestResult;
 import com.loadtest.platform.result.TestResultImage;
 import com.loadtest.platform.result.TestResultImageMapper;
@@ -25,10 +35,13 @@ import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
+import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.ApplicationContext;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -39,11 +52,13 @@ import org.springframework.test.web.servlet.MockMvc;
 class ReportControllerTest {
 
     private static final Path DB_PATH = Path.of("target", "report-controller-test.db");
+    private static final Path IMAGE_DIR = Path.of("target", "report-controller-images");
 
     @DynamicPropertySource
     static void databaseProperties(DynamicPropertyRegistry registry) throws Exception {
         Files.deleteIfExists(DB_PATH);
         registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + DB_PATH.toAbsolutePath());
+        registry.add("loadtest.grafana.image-dir", () -> IMAGE_DIR.toAbsolutePath().toString());
     }
 
     @Autowired
@@ -75,6 +90,12 @@ class ReportControllerTest {
 
     @Autowired
     private TestExecutionMapper testExecutionMapper;
+
+    @Autowired
+    private ProjectDatasourceMapper projectDatasourceMapper;
+
+    @MockBean(name = "defaultGrafanaImageClient")
+    private GrafanaImageClient grafanaImageClient;
 
     @Test
     void doesNotRegisterReportSchedulerWhenDisabled() {
@@ -206,6 +227,70 @@ class ReportControllerTest {
                 .andExpect(jsonPath("$.data.contentMarkdown", containsString("TPS 趋势")))
                 .andExpect(jsonPath("$.data.contentMarkdown", containsString("/api/result-images/")))
                 .andExpect(jsonPath("$.data.contentHtml", containsString("<figure class=\"grafana-image-figure\">")));
+    }
+
+    @Test
+    void exportsConfiguredGrafanaImagesBeforeCompletingReport() throws Exception {
+        Long resultId = createResult("success");
+        TestResult result = testResultMapper.selectById(resultId);
+        addMetric(resultId, "jmeter", "ART", "all", "p95", BigDecimal.valueOf(850), "ms", "normal");
+        addGrafanaDatasource(result.getProjectId(), """
+                {
+                  "orgId": 1,
+                  "theme": "light",
+                  "width": 1200,
+                  "height": 700,
+                  "panels": [
+                    {
+                      "title": "JMeter 总览",
+                      "dashboardUid": "jmeter",
+                      "dashboardSlug": "jmeter",
+                      "panelId": 1,
+                      "imageType": "jmeter"
+                    },
+                    {
+                      "title": "Node Exporter CPU",
+                      "dashboardUid": "node",
+                      "dashboardSlug": "node-exporter",
+                      "panelId": 2,
+                      "imageType": "node_exporter"
+                    }
+                  ]
+                }
+                """);
+        when(grafanaImageClient.renderPanel(any(), any()))
+                .thenAnswer(invocation -> {
+                    GrafanaRenderRequest request = invocation.getArgument(1);
+                    return new GrafanaImageData(new byte[] {1, 2, 3, request.panelId().byteValue()}, "image/png",
+                            "http://grafana/render/d-solo/" + request.dashboardUid() + "/"
+                                    + request.dashboardSlug() + "?panelId=" + request.panelId());
+                });
+
+        Long reportId = createAndRunReport(resultId);
+
+        List<TestResultImage> images = testResultImageMapper.selectList(
+                new LambdaQueryWrapper<TestResultImage>()
+                        .eq(TestResultImage::getResultId, resultId)
+                        .orderByAsc(TestResultImage::getId));
+        assertThat(images).hasSize(2);
+        assertThat(images).extracting(TestResultImage::getImageType)
+                .containsExactly("jmeter", "node_exporter");
+        assertThat(images).extracting(TestResultImage::getTitle)
+                .containsExactly("JMeter 总览", "Node Exporter CPU");
+
+        mockMvc.perform(get("/api/reports/{reportId}", reportId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("success"))
+                .andExpect(jsonPath("$.data.contentHtml", containsString("/api/result-images/")));
+
+        ArgumentCaptor<GrafanaRenderRequest> requestCaptor = ArgumentCaptor.forClass(GrafanaRenderRequest.class);
+        verify(grafanaImageClient, times(2)).renderPanel(any(), requestCaptor.capture());
+        String expectedFrom = String.valueOf(OffsetDateTime.parse(result.getTimeRangeStart()).toInstant().toEpochMilli());
+        String expectedTo = String.valueOf(OffsetDateTime.parse(result.getTimeRangeEnd()).toInstant().toEpochMilli());
+        assertThat(requestCaptor.getAllValues()).allSatisfy(request -> {
+            assertThat(request.from()).isEqualTo(expectedFrom);
+            assertThat(request.to()).isEqualTo(expectedTo);
+        });
     }
 
     @Test
@@ -481,6 +566,21 @@ class ReportControllerTest {
         image.setHeight(700);
         image.setCreatedAt(OffsetDateTime.now().toString());
         testResultImageMapper.insert(image);
+    }
+
+    private void addGrafanaDatasource(Long projectId, String extraConfigJson) {
+        String now = OffsetDateTime.now().toString();
+        ProjectDatasource datasource = new ProjectDatasource();
+        datasource.setProjectId(projectId);
+        datasource.setType("grafana");
+        datasource.setName("main-grafana");
+        datasource.setBaseUrl("http://grafana");
+        datasource.setTokenEncrypted("token");
+        datasource.setExtraConfigJson(extraConfigJson);
+        datasource.setStatus("active");
+        datasource.setCreatedAt(now);
+        datasource.setUpdatedAt(now);
+        projectDatasourceMapper.insert(datasource);
     }
 
     private Long extractId(String responseBody) {

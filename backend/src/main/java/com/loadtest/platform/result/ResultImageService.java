@@ -13,7 +13,9 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.FileSystemResource;
@@ -38,7 +40,7 @@ public class ResultImageService {
     public ResultImageResponse exportGrafanaImage(Long resultId, ResultImageRequest request) {
         TestResult result = getResult(resultId);
         ProjectDatasource datasource = datasource(result.getProjectId());
-        GrafanaDatasourceConfig config = parseConfig(datasource.getExtraConfigJson());
+        GrafanaDatasourceConfig config = parseConfig(datasource.getExtraConfigJson(), false);
         String dashboardUid = firstNonBlank(request.getDashboardUid(), config.dashboardUid());
         if (dashboardUid == null) {
             throw new IllegalArgumentException("grafana dashboardUid is required");
@@ -61,35 +63,50 @@ public class ResultImageService {
         );
 
         GrafanaImageData imageData = grafanaImageClient.renderPanel(datasource, renderRequest);
-        String now = OffsetDateTime.now().toString();
-        String extension = extension(imageData.contentType());
-        Path relativePath = Path.of(String.valueOf(result.getProjectId()), String.valueOf(result.getId()),
-                "panel-" + request.getPanelId() + "-" + System.currentTimeMillis() + extension);
-        Path absolutePath = rootDir().resolve(relativePath).normalize();
-        try {
-            Files.createDirectories(absolutePath.getParent());
-            Files.write(absolutePath, imageData.content());
-        } catch (IOException exception) {
-            throw new IllegalStateException("failed to save grafana image", exception);
+        TestResultImage image = saveGrafanaImage(result, imageData, "grafana_panel",
+                firstNonBlank(request.getTitle(), "Grafana Panel " + request.getPanelId()), dashboardUid,
+                dashboardSlug, request.getPanelId(), width, height);
+        return ResultImageResponse.from(image);
+    }
+
+    public List<ResultImageResponse> exportConfiguredGrafanaImages(Long resultId) {
+        TestResult result = getResult(resultId);
+        ProjectDatasource datasource = findDatasource(result.getProjectId());
+        if (datasource == null) {
+            return List.of();
+        }
+        GrafanaDatasourceConfig config = parseConfig(datasource.getExtraConfigJson(), true);
+        if (config.panels() == null || config.panels().isEmpty()) {
+            throw new IllegalArgumentException("grafana panels are required");
         }
 
-        TestResultImage image = new TestResultImage();
-        image.setResultId(result.getId());
-        image.setProjectId(result.getProjectId());
-        image.setImageType("grafana_panel");
-        image.setTitle(firstNonBlank(request.getTitle(), "Grafana Panel " + request.getPanelId()));
-        image.setDashboardUid(dashboardUid);
-        image.setDashboardSlug(dashboardSlug);
-        image.setPanelId(request.getPanelId());
-        image.setGrafanaUrl(imageData.renderUrl());
-        image.setFilePath(relativePath.toString().replace('\\', '/'));
-        image.setContentType(imageData.contentType());
-        image.setFileSize((long) imageData.content().length);
-        image.setWidth(width);
-        image.setHeight(height);
-        image.setCreatedAt(now);
-        testResultImageMapper.insert(image);
-        return ResultImageResponse.from(image);
+        List<ResolvedGrafanaPanel> panels = config.panels().stream()
+                .map(panel -> resolvePanel(config, panel))
+                .toList();
+        Set<String> imageTypes = panels.stream()
+                .map(ResolvedGrafanaPanel::imageType)
+                .collect(LinkedHashSet::new, Set::add, Set::addAll);
+        deleteImagesByTypes(result.getId(), imageTypes);
+
+        return panels.stream()
+                .map(panel -> {
+                    GrafanaRenderRequest renderRequest = new GrafanaRenderRequest(
+                            panel.dashboardUid(),
+                            panel.dashboardSlug(),
+                            panel.panelId(),
+                            toEpochMillis(result.getTimeRangeStart()),
+                            toEpochMillis(result.getTimeRangeEnd()),
+                            panel.orgId(),
+                            panel.width(),
+                            panel.height(),
+                            panel.theme()
+                    );
+                    GrafanaImageData imageData = grafanaImageClient.renderPanel(datasource, renderRequest);
+                    return ResultImageResponse.from(saveGrafanaImage(result, imageData, panel.imageType(),
+                            panel.title(), panel.dashboardUid(), panel.dashboardSlug(), panel.panelId(),
+                            panel.width(), panel.height()));
+                })
+                .toList();
     }
 
     public List<ResultImageResponse> listImages(Long resultId) {
@@ -137,25 +154,108 @@ public class ResultImageService {
     }
 
     private ProjectDatasource datasource(Long projectId) {
-        ProjectDatasource datasource = projectDatasourceMapper.selectOne(new LambdaQueryWrapper<ProjectDatasource>()
-                .eq(ProjectDatasource::getProjectId, projectId)
-                .eq(ProjectDatasource::getType, "grafana")
-                .last("limit 1"));
+        ProjectDatasource datasource = findDatasource(projectId);
         if (datasource == null) {
             throw new NotFoundException("grafana datasource not found");
         }
         return datasource;
     }
 
-    private GrafanaDatasourceConfig parseConfig(String json) {
+    private ProjectDatasource findDatasource(Long projectId) {
+        return projectDatasourceMapper.selectOne(new LambdaQueryWrapper<ProjectDatasource>()
+                .eq(ProjectDatasource::getProjectId, projectId)
+                .eq(ProjectDatasource::getType, "grafana")
+                .last("limit 1"));
+    }
+
+    private GrafanaDatasourceConfig parseConfig(String json, boolean strict) {
         if (json == null || json.isBlank()) {
-            return new GrafanaDatasourceConfig(null, null, null, null, null, null);
+            return new GrafanaDatasourceConfig(null, null, null, null, null, null, null);
         }
         try {
             return objectMapper.readValue(json, GrafanaDatasourceConfig.class);
         } catch (JsonProcessingException exception) {
-            return new GrafanaDatasourceConfig(null, null, null, null, null, null);
+            if (!strict) {
+                return new GrafanaDatasourceConfig(null, null, null, null, null, null, null);
+            }
+            throw new IllegalArgumentException("invalid grafana config json", exception);
         }
+    }
+
+    private ResolvedGrafanaPanel resolvePanel(GrafanaDatasourceConfig config, GrafanaPanelConfig panel) {
+        String dashboardUid = firstNonBlank(panel.dashboardUid(), config.dashboardUid());
+        if (dashboardUid == null) {
+            throw new IllegalArgumentException("grafana dashboardUid is required");
+        }
+        if (panel.panelId() == null) {
+            throw new IllegalArgumentException("grafana panelId is required");
+        }
+        String dashboardSlug = firstNonBlank(panel.dashboardSlug(), config.dashboardSlug(), "_");
+        Integer orgId = panel.orgId() == null ? config.orgId() : panel.orgId();
+        int width = panel.width() == null ? defaultInt(config.width(), 1200) : panel.width();
+        int height = panel.height() == null ? defaultInt(config.height(), 700) : panel.height();
+        String theme = firstNonBlank(panel.theme(), config.theme(), "light");
+        String imageType = firstNonBlank(panel.imageType(), "grafana_panel");
+        String title = firstNonBlank(panel.title(), "Grafana Panel " + panel.panelId());
+        return new ResolvedGrafanaPanel(dashboardUid, dashboardSlug, panel.panelId(), orgId, width, height,
+                theme, imageType, title);
+    }
+
+    private TestResultImage saveGrafanaImage(
+            TestResult result,
+            GrafanaImageData imageData,
+            String imageType,
+            String title,
+            String dashboardUid,
+            String dashboardSlug,
+            Integer panelId,
+            Integer width,
+            Integer height
+    ) {
+        String now = OffsetDateTime.now().toString();
+        String extension = extension(imageData.contentType());
+        Path relativePath = Path.of(String.valueOf(result.getProjectId()), String.valueOf(result.getId()),
+                "panel-" + panelId + "-" + System.currentTimeMillis() + extension);
+        Path absolutePath = rootDir().resolve(relativePath).normalize();
+        try {
+            Files.createDirectories(absolutePath.getParent());
+            Files.write(absolutePath, imageData.content());
+        } catch (IOException exception) {
+            throw new IllegalStateException("failed to save grafana image", exception);
+        }
+
+        TestResultImage image = new TestResultImage();
+        image.setResultId(result.getId());
+        image.setProjectId(result.getProjectId());
+        image.setImageType(imageType);
+        image.setTitle(title);
+        image.setDashboardUid(dashboardUid);
+        image.setDashboardSlug(dashboardSlug);
+        image.setPanelId(panelId);
+        image.setGrafanaUrl(imageData.renderUrl());
+        image.setFilePath(relativePath.toString().replace('\\', '/'));
+        image.setContentType(imageData.contentType());
+        image.setFileSize((long) imageData.content().length);
+        image.setWidth(width);
+        image.setHeight(height);
+        image.setCreatedAt(now);
+        testResultImageMapper.insert(image);
+        return image;
+    }
+
+    private void deleteImagesByTypes(Long resultId, Set<String> imageTypes) {
+        if (imageTypes.isEmpty()) {
+            return;
+        }
+        List<TestResultImage> oldImages = testResultImageMapper.selectList(new LambdaQueryWrapper<TestResultImage>()
+                .eq(TestResultImage::getResultId, resultId)
+                .in(TestResultImage::getImageType, imageTypes));
+        for (TestResultImage image : oldImages) {
+            deleteImageFile(image);
+        }
+        testResultImageMapper.delete(new LambdaQueryWrapper<TestResultImage>()
+                .eq(TestResultImage::getResultId, resultId)
+                .in(TestResultImage::getImageType, imageTypes));
     }
 
     private String toEpochMillis(String time) {
@@ -206,7 +306,34 @@ public class ResultImageService {
             Integer orgId,
             Integer width,
             Integer height,
-            String theme
+            String theme,
+            List<GrafanaPanelConfig> panels
+    ) {
+    }
+
+    private record GrafanaPanelConfig(
+            String title,
+            String dashboardUid,
+            String dashboardSlug,
+            Integer panelId,
+            Integer orgId,
+            Integer width,
+            Integer height,
+            String theme,
+            String imageType
+    ) {
+    }
+
+    private record ResolvedGrafanaPanel(
+            String dashboardUid,
+            String dashboardSlug,
+            Integer panelId,
+            Integer orgId,
+            Integer width,
+            Integer height,
+            String theme,
+            String imageType,
+            String title
     ) {
     }
 
