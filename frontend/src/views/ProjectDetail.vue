@@ -49,6 +49,21 @@ const prometheusForm = reactive({
   extraConfigJson: "{\"instances\":[\"127.0.0.1:9100\"]}",
 });
 
+const grafanaForm = reactive({
+  name: "grafana",
+  baseUrl: "http://192.168.123.141:3000",
+  username: "admin",
+  passwordEncrypted: "",
+  tokenEncrypted: "",
+  extraConfigJson: `{
+  "orgId": 1,
+  "theme": "light",
+  "width": 1200,
+  "height": 700,
+  "panels": []
+}`,
+});
+
 async function safe<T>(request: Promise<T>): Promise<T | undefined> {
   try {
     return await request;
@@ -73,6 +88,7 @@ function fillConfig() {
   }
   const influx = datasources.value.find((item) => item.type === "influxdb");
   const prometheus = datasources.value.find((item) => item.type === "prometheus");
+  const grafana = datasources.value.find((item) => item.type === "grafana");
   if (influx) {
     Object.assign(influxForm, {
       name: influx.name,
@@ -88,6 +104,14 @@ function fillConfig() {
       baseUrl: prometheus.baseUrl,
       username: prometheus.username || "",
       extraConfigJson: prometheus.extraConfigJson || "",
+    });
+  }
+  if (grafana) {
+    Object.assign(grafanaForm, {
+      name: grafana.name,
+      baseUrl: grafana.baseUrl,
+      username: grafana.username || "",
+      extraConfigJson: grafana.extraConfigJson || "",
     });
   }
 }
@@ -119,8 +143,8 @@ async function saveJMeterServer() {
   await loadDetail();
 }
 
-async function saveDatasource(type: "influxdb" | "prometheus") {
-  const source = type === "influxdb" ? influxForm : prometheusForm;
+async function saveDatasource(type: "influxdb" | "prometheus" | "grafana") {
+  const source = type === "influxdb" ? influxForm : type === "prometheus" ? prometheusForm : grafanaForm;
   await upsertDatasource(projectId.value, type, { ...source });
   ElMessage.success("数据源已保存");
   await loadDetail();
@@ -180,6 +204,14 @@ onMounted(loadDetail);
           <el-form-item label="地址"><el-input v-model="prometheusForm.baseUrl" /></el-form-item>
           <el-form-item label="扩展配置"><el-input v-model="prometheusForm.extraConfigJson" type="textarea" :rows="2" /></el-form-item>
           <el-form-item><el-button @click="saveDatasource('prometheus')">保存 Prometheus</el-button></el-form-item>
+          <el-divider content-position="left">Grafana</el-divider>
+          <el-form-item label="名称"><el-input v-model="grafanaForm.name" /></el-form-item>
+          <el-form-item label="地址"><el-input v-model="grafanaForm.baseUrl" /></el-form-item>
+          <el-form-item label="用户名"><el-input v-model="grafanaForm.username" /></el-form-item>
+          <el-form-item label="密码"><el-input v-model="grafanaForm.passwordEncrypted" type="password" show-password /></el-form-item>
+          <el-form-item label="Token"><el-input v-model="grafanaForm.tokenEncrypted" type="password" show-password /></el-form-item>
+          <el-form-item label="扩展配置"><el-input v-model="grafanaForm.extraConfigJson" type="textarea" :rows="8" /></el-form-item>
+          <el-form-item><el-button @click="saveDatasource('grafana')">保存 Grafana</el-button></el-form-item>
         </el-form>
       </section>
     </div>
