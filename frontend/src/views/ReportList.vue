@@ -77,7 +77,11 @@ onMounted(async () => {
       <el-table-column prop="title" label="报告标题" min-width="240" />
       <el-table-column prop="reportType" label="类型" width="120" />
       <el-table-column label="状态" width="120">
-        <template #default="{ row }"><StatusTag :status="row.status" /></template>
+        <template #default="{ row }">
+          <el-tooltip :content="row.errorMessage" :disabled="!row.errorMessage" placement="top">
+            <StatusTag :status="row.status" />
+          </el-tooltip>
+        </template>
       </el-table-column>
       <el-table-column label="生成时间" min-width="200">
         <template #default="{ row }">{{ formatDisplayDateTime(row.createdAt) }}</template>

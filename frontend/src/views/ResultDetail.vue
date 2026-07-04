@@ -94,7 +94,7 @@ async function createReport() {
     return;
   }
   const report = await generateReport(result.value.id);
-  ElMessage.success("报告已生成");
+  ElMessage.success("报告任务已创建");
   router.push(`/reports/${report.id}`);
 }
 

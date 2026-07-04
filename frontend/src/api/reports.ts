@@ -5,7 +5,10 @@ export interface TestReport {
   projectId: number;
   title: string;
   reportType: string;
-  status: string;
+  status: "pending" | "running" | "success" | "failed" | string;
+  errorMessage?: string;
+  startedAt?: string;
+  finishedAt?: string;
   contentMarkdown: string;
   contentHtml: string;
   resultIdsJson: string;
