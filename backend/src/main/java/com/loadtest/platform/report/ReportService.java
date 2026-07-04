@@ -26,12 +26,15 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.RequiredArgsConstructor;
 import org.commonmark.Extension;
 import org.commonmark.ext.gfm.tables.TablesExtension;
 import org.commonmark.node.Node;
 import org.commonmark.parser.Parser;
 import org.commonmark.renderer.html.HtmlRenderer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -39,8 +42,10 @@ import org.springframework.transaction.support.TransactionTemplate;
 @RequiredArgsConstructor
 public class ReportService {
 
+    private static final Logger log = LoggerFactory.getLogger(ReportService.class);
     private static final String REPORT_TYPE = "single_result_text";
     private static final int RUNNING_TIMEOUT_MINUTES = 30;
+    private final AtomicBoolean reportWorkerRunning = new AtomicBoolean(false);
     private static final String RUNNING_TIMEOUT_MESSAGE = "报告生成超时，请重新生成";
 
     private final TestReportMapper testReportMapper;
@@ -71,15 +76,23 @@ public class ReportService {
     }
 
     public void runOnePendingReport() {
-        TestReport report = claimNextPendingReport();
-        if (report == null) {
+        if (!reportWorkerRunning.compareAndSet(false, true)) {
             return;
         }
 
         try {
-            completeReport(report.getId());
-        } catch (Exception exception) {
-            markFailed(report.getId(), exception);
+            TestReport report = claimNextPendingReport();
+            if (report == null) {
+                return;
+            }
+            try {
+                completeReport(report.getId());
+            } catch (Exception exception) {
+                log.error("Failed to generate report: reportId={}", report.getId(), exception);
+                markFailed(report.getId(), exception);
+            }
+        } finally {
+            reportWorkerRunning.set(false);
         }
     }
 
@@ -180,7 +193,10 @@ public class ReportService {
                     .set(TestReport::getUpdatedAt, now)
                     .eq(TestReport::getId, reportId)
                     .eq(TestReport::getStatus, "running");
-            testReportMapper.update(null, wrapper);
+            int updatedRows = testReportMapper.update(null, wrapper);
+            if (updatedRows == 0) {
+                log.warn("Skipped marking report success because status changed: reportId={}", reportId);
+            }
         });
     }
 
@@ -195,7 +211,10 @@ public class ReportService {
                     .set(TestReport::getUpdatedAt, now)
                     .eq(TestReport::getId, reportId)
                     .eq(TestReport::getStatus, "running");
-            testReportMapper.update(null, wrapper);
+            int updatedRows = testReportMapper.update(null, wrapper);
+            if (updatedRows == 0) {
+                log.warn("Skipped marking report failed because status changed: reportId={}", reportId);
+            }
         });
     }
 
