@@ -1,11 +1,13 @@
 import { http, type ApiResponse } from "./http";
 
+export type ReportStatus = "pending" | "running" | "success" | "failed";
+
 export interface TestReport {
   id: number;
   projectId: number;
   title: string;
   reportType: string;
-  status: "pending" | "running" | "success" | "failed" | string;
+  status: ReportStatus;
   errorMessage?: string;
   startedAt?: string;
   finishedAt?: string;

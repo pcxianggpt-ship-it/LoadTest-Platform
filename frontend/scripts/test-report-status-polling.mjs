@@ -16,8 +16,14 @@ const [reportApiSource, reportDetailSource, reportListSource, resultDetailSource
 
 assert.match(
   reportApiSource,
-  /status:\s*"pending"\s*\|\s*"running"\s*\|\s*"success"\s*\|\s*"failed"\s*\|\s*string/,
+  /export\s+type\s+ReportStatus\s*=\s*"pending"\s*\|\s*"running"\s*\|\s*"success"\s*\|\s*"failed"/,
   "TestReport.status 必须包含 pending/running/success/failed 联合类型"
+);
+assert.match(reportApiSource, /status:\s*ReportStatus/, "TestReport.status must use ReportStatus");
+assert.doesNotMatch(
+  reportApiSource,
+  /status:\s*"pending"\s*\|\s*"running"\s*\|\s*"success"\s*\|\s*"failed"\s*\|\s*string/,
+  "TestReport.status must not widen the union with string"
 );
 assert.match(reportApiSource, /errorMessage\?:\s*string/, "TestReport 必须包含 errorMessage");
 assert.match(reportApiSource, /startedAt\?:\s*string/, "TestReport 必须包含 startedAt");
