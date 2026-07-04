@@ -294,6 +294,126 @@ class ReportControllerTest {
     }
 
     @Test
+    void keepsManualGrafanaPanelImageWhenAutoPanelUsesDefaultImageType() throws Exception {
+        Long resultId = createResult("success");
+        TestResult result = testResultMapper.selectById(resultId);
+        addMetric(resultId, "jmeter", "ART", "all", "p95", BigDecimal.valueOf(850), "ms", "normal");
+        addImage(resultId, "手动导出图", 7);
+        TestResultImage manualImage = testResultImageMapper.selectOne(new LambdaQueryWrapper<TestResultImage>()
+                .eq(TestResultImage::getResultId, resultId)
+                .eq(TestResultImage::getTitle, "手动导出图"));
+        addGrafanaDatasource(result.getProjectId(), """
+                {
+                  "dashboardUid": "perf-main",
+                  "panels": [
+                    {
+                      "title": "自动导出图",
+                      "panelId": 8
+                    }
+                  ]
+                }
+                """);
+        when(grafanaImageClient.renderPanel(any(), any()))
+                .thenReturn(new GrafanaImageData(new byte[] {1, 2, 3, 4}, "image/png",
+                        "http://grafana/render/d-solo/perf-main/_?panelId=8"));
+
+        createAndRunReport(resultId);
+
+        List<TestResultImage> images = testResultImageMapper.selectList(new LambdaQueryWrapper<TestResultImage>()
+                .eq(TestResultImage::getResultId, resultId)
+                .orderByAsc(TestResultImage::getId));
+        assertThat(images).hasSize(2);
+        assertThat(images).extracting(TestResultImage::getId).contains(manualImage.getId());
+        assertThat(images).extracting(TestResultImage::getTitle).contains("手动导出图", "自动导出图");
+        assertThat(testResultImageMapper.selectById(manualImage.getId())).isNotNull();
+    }
+
+    @Test
+    void generatingReportTwiceKeepsPreviousReportImageRecords() throws Exception {
+        Long resultId = createResult("success");
+        TestResult result = testResultMapper.selectById(resultId);
+        addMetric(resultId, "jmeter", "ART", "all", "p95", BigDecimal.valueOf(850), "ms", "normal");
+        addGrafanaDatasource(result.getProjectId(), """
+                {
+                  "dashboardUid": "perf-main",
+                  "panels": [
+                    {
+                      "title": "自动导出图",
+                      "panelId": 8
+                    }
+                  ]
+                }
+                """);
+        when(grafanaImageClient.renderPanel(any(), any()))
+                .thenReturn(new GrafanaImageData(new byte[] {1, 2, 3, 4}, "image/png",
+                        "http://grafana/render/d-solo/perf-main/_?panelId=8"));
+
+        createAndRunReport(resultId);
+        TestResultImage firstImage = testResultImageMapper.selectOne(new LambdaQueryWrapper<TestResultImage>()
+                .eq(TestResultImage::getResultId, resultId)
+                .eq(TestResultImage::getTitle, "自动导出图"));
+        createAndRunReport(resultId);
+
+        assertThat(testResultImageMapper.selectById(firstImage.getId())).isNotNull();
+        List<TestResultImage> images = testResultImageMapper.selectList(new LambdaQueryWrapper<TestResultImage>()
+                .eq(TestResultImage::getResultId, resultId)
+                .orderByAsc(TestResultImage::getId));
+        assertThat(images).hasSize(2);
+        assertThat(images).extracting(TestResultImage::getId).contains(firstImage.getId());
+    }
+
+    @Test
+    void rejectsInvalidConfiguredGrafanaPanelValues() {
+        assertInvalidGrafanaConfig("""
+                {
+                  "dashboardUid": "perf-main",
+                  "panels": [
+                    {
+                      "title": "非法面板",
+                      "panelId": 0,
+                      "width": 0,
+                      "height": -1
+                    }
+                  ]
+                }
+                """, "grafana panelId must be positive");
+    }
+
+    @Test
+    void rejectsConfiguredGrafanaPanelNonPositiveSize() {
+        assertInvalidGrafanaConfig("""
+                {
+                  "dashboardUid": "perf-main",
+                  "panels": [
+                    {
+                      "title": "非法宽度",
+                      "panelId": 1,
+                      "width": 0,
+                      "height": 700
+                    }
+                  ]
+                }
+                """, "grafana width must be positive");
+    }
+
+    @Test
+    void rejectsConfiguredGrafanaPanelNonPositiveDefaultSize() {
+        assertInvalidGrafanaConfig("""
+                {
+                  "dashboardUid": "perf-main",
+                  "width": 1200,
+                  "height": 0,
+                  "panels": [
+                    {
+                      "title": "非法默认高度",
+                      "panelId": 1
+                    }
+                  ]
+                }
+                """, "grafana height must be positive");
+    }
+
+    @Test
     void readsReportById() throws Exception {
         Long resultId = createResult("success");
         addMetric(resultId, "jmeter", "ART", "all", "p95", BigDecimal.valueOf(850), "ms", "normal");
@@ -473,6 +593,19 @@ class ReportControllerTest {
         report.setUpdatedAt(createdAt);
         testReportMapper.insert(report);
         return report;
+    }
+
+    private void assertInvalidGrafanaConfig(String extraConfigJson, String errorMessage) {
+        Long resultId = createResult("success");
+        TestResult result = testResultMapper.selectById(resultId);
+        addGrafanaDatasource(result.getProjectId(), extraConfigJson);
+        TestReport report = createPendingReport(resultId, "invalid panel", OffsetDateTime.now().toString());
+
+        reportService.runOnePendingReport();
+
+        TestReport updated = testReportMapper.selectById(report.getId());
+        assertThat(updated.getStatus()).isEqualTo("failed");
+        assertThat(updated.getErrorMessage()).contains(errorMessage);
     }
 
     private Long createResult(String status) {

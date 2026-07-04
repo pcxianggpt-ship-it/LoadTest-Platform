@@ -13,9 +13,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.FileSystemResource;
@@ -83,10 +81,6 @@ public class ResultImageService {
         List<ResolvedGrafanaPanel> panels = config.panels().stream()
                 .map(panel -> resolvePanel(config, panel))
                 .toList();
-        Set<String> imageTypes = panels.stream()
-                .map(ResolvedGrafanaPanel::imageType)
-                .collect(LinkedHashSet::new, Set::add, Set::addAll);
-        deleteImagesByTypes(result.getId(), imageTypes);
 
         return panels.stream()
                 .map(panel -> {
@@ -190,10 +184,15 @@ public class ResultImageService {
         if (panel.panelId() == null) {
             throw new IllegalArgumentException("grafana panelId is required");
         }
+        if (panel.panelId() <= 0) {
+            throw new IllegalArgumentException("grafana panelId must be positive");
+        }
         String dashboardSlug = firstNonBlank(panel.dashboardSlug(), config.dashboardSlug(), "_");
         Integer orgId = panel.orgId() == null ? config.orgId() : panel.orgId();
         int width = panel.width() == null ? defaultInt(config.width(), 1200) : panel.width();
         int height = panel.height() == null ? defaultInt(config.height(), 700) : panel.height();
+        validatePositive("width", width);
+        validatePositive("height", height);
         String theme = firstNonBlank(panel.theme(), config.theme(), "light");
         String imageType = firstNonBlank(panel.imageType(), "grafana_panel");
         String title = firstNonBlank(panel.title(), "Grafana Panel " + panel.panelId());
@@ -243,27 +242,18 @@ public class ResultImageService {
         return image;
     }
 
-    private void deleteImagesByTypes(Long resultId, Set<String> imageTypes) {
-        if (imageTypes.isEmpty()) {
-            return;
-        }
-        List<TestResultImage> oldImages = testResultImageMapper.selectList(new LambdaQueryWrapper<TestResultImage>()
-                .eq(TestResultImage::getResultId, resultId)
-                .in(TestResultImage::getImageType, imageTypes));
-        for (TestResultImage image : oldImages) {
-            deleteImageFile(image);
-        }
-        testResultImageMapper.delete(new LambdaQueryWrapper<TestResultImage>()
-                .eq(TestResultImage::getResultId, resultId)
-                .in(TestResultImage::getImageType, imageTypes));
-    }
-
     private String toEpochMillis(String time) {
         return String.valueOf(OffsetDateTime.parse(time).toInstant().toEpochMilli());
     }
 
     private int defaultInt(Integer value, int fallback) {
         return value == null ? fallback : value;
+    }
+
+    private void validatePositive(String field, int value) {
+        if (value <= 0) {
+            throw new IllegalArgumentException("grafana " + field + " must be positive");
+        }
     }
 
     private String firstNonBlank(String... values) {
