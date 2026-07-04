@@ -29,11 +29,12 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.ApplicationContext;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
-@SpringBootTest(properties = "spring.task.scheduling.enabled=false")
+@SpringBootTest(properties = "loadtest.report.scheduler.enabled=false")
 @AutoConfigureMockMvc
 class ReportControllerTest {
 
@@ -47,6 +48,9 @@ class ReportControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private ApplicationContext applicationContext;
 
     @Autowired
     private TestResultMapper testResultMapper;
@@ -71,6 +75,11 @@ class ReportControllerTest {
 
     @Autowired
     private TestExecutionMapper testExecutionMapper;
+
+    @Test
+    void doesNotRegisterReportSchedulerWhenDisabled() {
+        assertThat(applicationContext.getBeansOfType(ReportScheduler.class)).isEmpty();
+    }
 
     @Test
     void createsPendingReportAndCompletesItInBackground() throws Exception {
