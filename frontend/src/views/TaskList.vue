@@ -5,6 +5,7 @@ import { useRoute, useRouter } from "vue-router";
 import { listProjects, type Project } from "../api/projects";
 import { deleteTask, listTasks, type TestTask } from "../api/tasks";
 import StatusTag from "../components/StatusTag.vue";
+import { resolveProjectId, setCurrentProjectId } from "../stores/currentProject";
 import { formatDisplayDateTime } from "../utils/dateTime";
 
 const route = useRoute();
@@ -13,6 +14,7 @@ const loading = ref(false);
 const projects = ref<Project[]>([]);
 const tasks = ref<TestTask[]>([]);
 const selectedProjectId = ref<number>();
+let initialized = false;
 
 const selectedProject = computed(() => projects.value.find((project) => project.id === selectedProjectId.value));
 
@@ -47,7 +49,7 @@ function compareTaskDuration(left: TestTask, right: TestTask) {
 async function loadProjects() {
   projects.value = await listProjects();
   const queryProjectId = Number(route.query.projectId);
-  selectedProjectId.value = queryProjectId || projects.value[0]?.id;
+  selectedProjectId.value = resolveProjectId(projects.value, queryProjectId);
 }
 
 async function loadTasks() {
@@ -93,11 +95,17 @@ async function removeTask(task: TestTask) {
   await loadTasks();
 }
 
-watch(selectedProjectId, loadTasks);
+watch(selectedProjectId, (projectId) => {
+  setCurrentProjectId(projectId);
+  if (initialized) {
+    loadTasks();
+  }
+});
 
 onMounted(async () => {
   await loadProjects();
   await loadTasks();
+  initialized = true;
 });
 </script>
 

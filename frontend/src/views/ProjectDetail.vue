@@ -11,6 +11,7 @@ import {
   type JMeterServer,
 } from "../api/config";
 import { getProject, type Project } from "../api/projects";
+import { setCurrentProjectId } from "../stores/currentProject";
 
 const route = useRoute();
 const router = useRouter();
@@ -125,6 +126,7 @@ async function loadDetail() {
       safe(listDatasources(projectId.value)),
     ]);
     project.value = projectData;
+    setCurrentProjectId(projectId.value);
     jmeterServer.value = serverData;
     datasources.value = datasourceData || [];
     fillConfig();

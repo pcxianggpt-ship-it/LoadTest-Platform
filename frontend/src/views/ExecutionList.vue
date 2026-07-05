@@ -17,6 +17,7 @@ import { listProjects, type Project } from "../api/projects";
 import { generateResult } from "../api/results";
 import { listTasks, type TestTask } from "../api/tasks";
 import StatusTag from "../components/StatusTag.vue";
+import { resolveProjectId, setCurrentProjectId } from "../stores/currentProject";
 import { formatDisplayDateTime } from "../utils/dateTime";
 
 const route = useRoute();
@@ -35,6 +36,7 @@ const activeExecution = ref<TestExecution>();
 const resultForm = reactive({ name: "" });
 const editForm = reactive({ executionName: "", remark: "" });
 const scheduledAt = ref<Date>();
+let initialized = false;
 
 const executionRows = computed(() =>
   executions.value.map((item) => ({
@@ -79,7 +81,7 @@ function taskMeta(item: TestTask) {
 async function loadProjects() {
   projects.value = await listProjects();
   const queryProjectId = Number(route.query.projectId || route.params.projectId);
-  selectedProjectId.value = queryProjectId || projects.value[0]?.id;
+  selectedProjectId.value = resolveProjectId(projects.value, queryProjectId);
 }
 
 async function loadData() {
@@ -233,11 +235,17 @@ function cleanupStatusTip(row: TestExecution) {
   return row.cleanupStatus === "none" ? "执行完成后才会产生清理状态" : "";
 }
 
-watch(selectedProjectId, loadData);
+watch(selectedProjectId, (projectId) => {
+  setCurrentProjectId(projectId);
+  if (initialized) {
+    loadData();
+  }
+});
 
 onMounted(async () => {
   await loadProjects();
   await loadData();
+  initialized = true;
 });
 </script>
 

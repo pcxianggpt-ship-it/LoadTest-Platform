@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ElMessage, ElMessageBox } from "element-plus";
 import { computed, onMounted, reactive, ref, watch } from "vue";
+import { useRoute } from "vue-router";
 import {
   createBusinessDatabase,
   createCleanupPlan,
@@ -18,7 +19,9 @@ import {
 } from "../api/cleanup";
 import { listProjects, type Project } from "../api/projects";
 import StatusTag from "../components/StatusTag.vue";
+import { resolveProjectId, setCurrentProjectId } from "../stores/currentProject";
 
+const route = useRoute();
 const loading = ref(false);
 const projects = ref<Project[]>([]);
 const databases = ref<BusinessDatabase[]>([]);
@@ -28,6 +31,7 @@ const databaseDialogVisible = ref(false);
 const planDialogVisible = ref(false);
 const editingDatabaseId = ref<number>();
 const editingPlanId = ref<number>();
+let initialized = false;
 
 const databaseForm = reactive({
   name: "",
@@ -50,7 +54,8 @@ const databaseMap = computed(() => new Map(databases.value.map((item) => [item.i
 
 async function loadProjects() {
   projects.value = await listProjects();
-  selectedProjectId.value = projects.value[0]?.id;
+  const queryProjectId = Number(route.query.projectId);
+  selectedProjectId.value = resolveProjectId(projects.value, queryProjectId);
 }
 
 async function loadData() {
@@ -217,11 +222,17 @@ function removeSqlRow(index: number) {
   }
 }
 
-watch(selectedProjectId, loadData);
+watch(selectedProjectId, (projectId) => {
+  setCurrentProjectId(projectId);
+  if (initialized) {
+    loadData();
+  }
+});
 
 onMounted(async () => {
   await loadProjects();
   await loadData();
+  initialized = true;
 });
 </script>
 

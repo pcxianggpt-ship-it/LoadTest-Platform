@@ -6,6 +6,7 @@ import { listProjects, type Project } from "../api/projects";
 import { generateReport } from "../api/reports";
 import { deleteResult, listResults, type TestResult } from "../api/results";
 import StatusTag from "../components/StatusTag.vue";
+import { resolveProjectId, setCurrentProjectId } from "../stores/currentProject";
 import { formatDisplayDateTime } from "../utils/dateTime";
 
 const route = useRoute();
@@ -14,13 +15,14 @@ const loading = ref(false);
 const projects = ref<Project[]>([]);
 const results = ref<TestResult[]>([]);
 const selectedProjectId = ref<number>();
+let initialized = false;
 
 const selectedProject = computed(() => projects.value.find((project) => project.id === selectedProjectId.value));
 
 async function loadProjects() {
   projects.value = await listProjects();
   const queryProjectId = Number(route.query.projectId);
-  selectedProjectId.value = queryProjectId || projects.value[0]?.id;
+  selectedProjectId.value = resolveProjectId(projects.value, queryProjectId);
 }
 
 async function loadResults() {
@@ -57,11 +59,17 @@ async function removeResult(row: TestResult) {
   await loadResults();
 }
 
-watch(selectedProjectId, loadResults);
+watch(selectedProjectId, (projectId) => {
+  setCurrentProjectId(projectId);
+  if (initialized) {
+    loadResults();
+  }
+});
 
 onMounted(async () => {
   await loadProjects();
   await loadResults();
+  initialized = true;
 });
 </script>
 
