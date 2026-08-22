@@ -294,6 +294,39 @@ class ReportControllerTest {
     }
 
     @Test
+    void completesReportWithAvailableMetricsWhenGrafanaExportFails() throws Exception {
+        Long resultId = createResult("success");
+        TestResult result = testResultMapper.selectById(resultId);
+        addMetric(resultId, "jmeter", "TPS", "all", "avg", BigDecimal.valueOf(120), "req/s", "normal");
+        addMetric(resultId, "cpu", "CPU usage", "10.0.0.11:9100", "max", BigDecimal.valueOf(65), "%", "normal");
+        addGrafanaDatasource(result.getProjectId(), """
+                {
+                  "dashboardUid": "perf-main",
+                  "panels": [
+                    {
+                      "title": "自动导出图",
+                      "panelId": 8
+                    }
+                  ]
+                }
+                """);
+        when(grafanaImageClient.renderPanel(any(), any()))
+                .thenThrow(new IllegalStateException("grafana-render is unavailable"));
+
+        Long reportId = createAndRunReport(resultId);
+
+        mockMvc.perform(get("/api/reports/{reportId}", reportId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("success"))
+                .andExpect(jsonPath("$.data.errorMessage").doesNotExist())
+                .andExpect(jsonPath("$.data.contentMarkdown", containsString("## 4. 核心性能指标")))
+                .andExpect(jsonPath("$.data.contentMarkdown", containsString("120.00 req/s")))
+                .andExpect(jsonPath("$.data.contentMarkdown", containsString("## 5. 服务器资源表现")))
+                .andExpect(jsonPath("$.data.contentMarkdown", containsString("65.00%")))
+                .andExpect(jsonPath("$.data.contentMarkdown", not(containsString("Grafana 图表归档"))));
+    }
+
+    @Test
     void keepsManualGrafanaPanelImageWhenAutoPanelUsesDefaultImageType() throws Exception {
         Long resultId = createResult("success");
         TestResult result = testResultMapper.selectById(resultId);
@@ -363,8 +396,8 @@ class ReportControllerTest {
     }
 
     @Test
-    void rejectsInvalidConfiguredGrafanaPanelValues() {
-        assertInvalidGrafanaConfig("""
+    void skipsInvalidConfiguredGrafanaPanelValues() {
+        assertSkipsInvalidGrafanaConfig("""
                 {
                   "dashboardUid": "perf-main",
                   "panels": [
@@ -376,12 +409,12 @@ class ReportControllerTest {
                     }
                   ]
                 }
-                """, "grafana panelId must be positive");
+                """);
     }
 
     @Test
-    void rejectsConfiguredGrafanaPanelNonPositiveSize() {
-        assertInvalidGrafanaConfig("""
+    void skipsConfiguredGrafanaPanelNonPositiveSize() {
+        assertSkipsInvalidGrafanaConfig("""
                 {
                   "dashboardUid": "perf-main",
                   "panels": [
@@ -393,12 +426,12 @@ class ReportControllerTest {
                     }
                   ]
                 }
-                """, "grafana width must be positive");
+                """);
     }
 
     @Test
-    void rejectsConfiguredGrafanaPanelNonPositiveDefaultSize() {
-        assertInvalidGrafanaConfig("""
+    void skipsConfiguredGrafanaPanelNonPositiveDefaultSize() {
+        assertSkipsInvalidGrafanaConfig("""
                 {
                   "dashboardUid": "perf-main",
                   "width": 1200,
@@ -410,7 +443,7 @@ class ReportControllerTest {
                     }
                   ]
                 }
-                """, "grafana height must be positive");
+                """);
     }
 
     @Test
@@ -595,17 +628,19 @@ class ReportControllerTest {
         return report;
     }
 
-    private void assertInvalidGrafanaConfig(String extraConfigJson, String errorMessage) {
+    private void assertSkipsInvalidGrafanaConfig(String extraConfigJson) {
         Long resultId = createResult("success");
         TestResult result = testResultMapper.selectById(resultId);
+        addMetric(resultId, "jmeter", "TPS", "all", "avg", BigDecimal.valueOf(120), "req/s", "normal");
         addGrafanaDatasource(result.getProjectId(), extraConfigJson);
         TestReport report = createPendingReport(resultId, "invalid panel", OffsetDateTime.now().toString());
 
         reportService.runOnePendingReport();
 
         TestReport updated = testReportMapper.selectById(report.getId());
-        assertThat(updated.getStatus()).isEqualTo("failed");
-        assertThat(updated.getErrorMessage()).contains(errorMessage);
+        assertThat(updated.getStatus()).isEqualTo("success");
+        assertThat(updated.getErrorMessage()).isNull();
+        assertThat(updated.getContentMarkdown()).contains("## 4. 核心性能指标", "120.00 req/s");
     }
 
     private Long createResult(String status) {

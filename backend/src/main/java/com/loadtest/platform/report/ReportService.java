@@ -178,7 +178,12 @@ public class ReportService {
         TestResult result = resultOrThrow(resultId);
         ensureReportable(result);
         List<TestResultMetric> metrics = metrics(resultId);
-        resultImageService.exportConfiguredGrafanaImages(resultId);
+        try {
+            resultImageService.exportConfiguredGrafanaImages(resultId);
+        } catch (RuntimeException exception) {
+            log.warn("Skipped Grafana report section because image export failed: reportId={}, resultId={}",
+                    reportId, resultId, exception);
+        }
         List<TestResultImage> images = images(resultId);
         String markdown = buildMarkdown(result, metrics, images);
         String html = renderHtml(markdown);
