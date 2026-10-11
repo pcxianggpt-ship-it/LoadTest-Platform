@@ -11,6 +11,7 @@ mkdir -p "${DATA_DIR}" "${LOG_DIR}"
 
 export SPRING_DATASOURCE_URL="${SPRING_DATASOURCE_URL:-jdbc:sqlite:${DATA_DIR}/loadtest-platform.db}"
 export SERVER_PORT="${SERVER_PORT:-8080}"
+export LOADTEST_FRONTEND_DIR="${LOADTEST_FRONTEND_DIR:-${APP_HOME}/frontend}"
 
 resolve_java() {
   if [[ -n "${JAVA_BIN:-}" && -x "${JAVA_BIN}" ]]; then

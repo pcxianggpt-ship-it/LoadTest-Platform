@@ -7,8 +7,6 @@ APP_USER="${APP_USER:-loadtest}"
 APP_GROUP="${APP_GROUP:-${APP_USER}}"
 SERVER_PORT="${SERVER_PORT:-8080}"
 JAVA_HOME="${JAVA_HOME:-/opt/jdk-17.0.17}"
-ENABLE_NGINX="${ENABLE_NGINX:-true}"
-NGINX_CONF_PATH="${NGINX_CONF_PATH:-/etc/nginx/conf.d/loadtest-platform.conf}"
 BACKUP_DATABASE="${BACKUP_DATABASE:-true}"
 
 PACKAGE_FILE="${1:-}"
@@ -86,7 +84,7 @@ extract_package() {
     echo "Invalid package: no root directory found" >&2
     exit 1
   fi
-  if [[ ! -f "${package_root}/backend/loadtest-platform.jar" || ! -f "${package_root}/backend/start.sh" || ! -d "${package_root}/frontend" ]]; then
+  if [[ ! -f "${package_root}/backend/loadtest-platform.jar" || ! -f "${package_root}/backend/start.sh" || ! -f "${package_root}/frontend/index.html" ]]; then
     echo "Invalid package: required backend or frontend files are missing" >&2
     exit 1
   fi
@@ -138,45 +136,6 @@ publish_files() {
   run_as_root chown -R "${APP_USER}:${APP_GROUP}" "${APP_HOME}"
 }
 
-write_nginx_config() {
-  if [[ "${ENABLE_NGINX}" != "true" ]]; then
-    return
-  fi
-  if ! command -v nginx >/dev/null 2>&1; then
-    echo "nginx not found, nginx config skipped"
-    return
-  fi
-
-  local tmp_file
-  tmp_file="$(mktemp)"
-  cat > "${tmp_file}" <<EOF
-server {
-    listen 80;
-    server_name _;
-
-    root ${DEPLOY_FRONTEND_DIR};
-    index index.html;
-
-    location / {
-        try_files \$uri \$uri/ /index.html;
-    }
-
-    location /api/ {
-        proxy_pass http://127.0.0.1:${SERVER_PORT}/api/;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-    }
-}
-EOF
-  run_as_root cp "${tmp_file}" "${NGINX_CONF_PATH}"
-  rm -f "${tmp_file}"
-  run_as_root nginx -t
-  if command -v systemctl >/dev/null 2>&1; then
-    run_as_root systemctl reload nginx || run_as_root systemctl restart nginx
-  fi
-}
-
 restart_backend() {
   need_command systemctl
   run_as_root systemctl daemon-reload
@@ -198,13 +157,10 @@ main() {
   package_root="$(extract_package)"
   publish_files "${package_root}"
   restart_backend
-  write_nginx_config
 
   echo "==> Offline deployment finished"
   echo "Backend health check: http://127.0.0.1:${SERVER_PORT}/health"
-  if [[ "${ENABLE_NGINX}" == "true" ]]; then
-    echo "Frontend URL: http://<server-ip>/"
-  fi
+  echo "Frontend URL: http://<server-ip>:${SERVER_PORT}/"
 }
 
 main "$@"

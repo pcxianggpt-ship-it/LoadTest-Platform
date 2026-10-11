@@ -5,7 +5,6 @@ APP_HOME="${APP_HOME:-/opt/loadtest-platform}"
 FRONTEND_TARGET="${FRONTEND_TARGET:-$APP_HOME/frontend}"
 APP_USER="${APP_USER:-loadtest}"
 APP_GROUP="${APP_GROUP:-loadtest}"
-RELOAD_NGINX="${RELOAD_NGINX:-true}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FRONTEND_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -61,10 +60,5 @@ if id "$APP_USER" >/dev/null 2>&1 && getent group "$APP_GROUP" >/dev/null 2>&1; 
   run_sudo chown -R "$APP_USER:$APP_GROUP" "$FRONTEND_TARGET"
 fi
 
-if [ "$RELOAD_NGINX" = "true" ]; then
-  echo "==> Validating and reloading nginx"
-  run_sudo nginx -t
-  run_sudo systemctl reload nginx
-fi
-
 echo "==> Frontend deployment finished"
+echo "Frontend files are served by the backend from: $FRONTEND_TARGET"

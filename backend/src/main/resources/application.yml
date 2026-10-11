@@ -2,6 +2,14 @@ server:
   port: 8080
 
 spring:
+  web:
+    resources:
+      static-locations:
+        - file:${LOADTEST_FRONTEND_DIR:../frontend}/
+        - classpath:/META-INF/resources/
+        - classpath:/resources/
+        - classpath:/static/
+        - classpath:/public/
   config:
     import:
       - optional:classpath:jmeter-influx.yml
