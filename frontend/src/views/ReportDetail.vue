@@ -55,7 +55,7 @@ onUnmounted(stopPolling);
   <section v-loading="loading" class="page-section">
     <div class="page-toolbar">
       <div>
-        <h2>{{ report?.title || "测试报告" }}</h2>
+        <h1>{{ report?.title || "测试报告" }}</h1>
         <p>{{ formatDisplayDateTime(report?.createdAt) }}</p>
       </div>
       <el-button v-if="report" @click="router.push(`/reports?projectId=${report.projectId}`)">返回报告</el-button>

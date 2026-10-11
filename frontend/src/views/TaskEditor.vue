@@ -149,8 +149,8 @@ onMounted(async () => {
   <section v-loading="loadingTask" class="page-section narrow-page">
     <div class="page-toolbar">
       <div>
-        <h2>{{ isEditing ? "编辑测试任务" : "创建测试任务" }}</h2>
-        <p>当前 MVP 创建一个 JMX 步骤，后端数据模型已支持多步骤。</p>
+        <h1>{{ isEditing ? "编辑测试任务" : "创建测试任务" }}</h1>
+        <p>选择 JMX 脚本，配置并发、持续时间和执行参数。</p>
       </div>
       <el-button @click="backToTasks">返回任务</el-button>
     </div>
@@ -185,7 +185,7 @@ onMounted(async () => {
       <el-form-item label="持续时间"><el-input-number v-model="form.durationSeconds" :min="1" /> <span class="unit-label">秒</span></el-form-item>
       <el-form-item label="预热时间"><el-input-number v-model="form.rampUpSeconds" :min="0" /> <span class="unit-label">秒</span></el-form-item>
       <el-form-item label="保存 JTL"><el-switch v-model="form.saveJtl" /></el-form-item>
-      <el-form-item label="JMeter 参数"><el-input v-model="form.jmeterArgsJson" type="textarea" :rows="4" /></el-form-item>
+      <el-form-item label="JMeter 参数"><el-input v-model="form.jmeterArgsJson" class="code-input" type="textarea" :rows="4" /></el-form-item>
       <el-form-item>
         <el-button type="primary" :disabled="loadingTask || loadingJmxFiles || loadingCleanupPlans || jmxFiles.length === 0" @click="submitTask">保存任务</el-button>
         <el-button @click="backToTasks">取消</el-button>

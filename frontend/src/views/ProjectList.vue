@@ -8,6 +8,7 @@ import { formatDisplayDateTime } from "../utils/dateTime";
 
 const router = useRouter();
 const loading = ref(false);
+const loadError = ref("");
 const dialogVisible = ref(false);
 const projects = ref<Project[]>([]);
 const form = reactive({
@@ -18,8 +19,11 @@ const form = reactive({
 
 async function loadProjects() {
   loading.value = true;
+  loadError.value = "";
   try {
     projects.value = await listProjects();
+  } catch {
+    loadError.value = "项目列表加载失败，请检查连接后重试。";
   } finally {
     loading.value = false;
   }
@@ -64,11 +68,15 @@ onMounted(loadProjects);
   <section class="page-section">
     <div class="page-toolbar">
       <div>
-        <h2>项目管理</h2>
+        <h1>项目管理 <span v-if="!loading && !loadError" class="title-count">{{ projects.length }}</span></h1>
         <p>从这里创建测试项目，并进入完整压测流程。</p>
       </div>
       <el-button type="primary" @click="dialogVisible = true">创建项目</el-button>
     </div>
+
+    <el-alert v-if="loadError" :title="loadError" type="error" show-icon :closable="false" class="result-alert">
+      <el-button size="small" @click="loadProjects">重新加载</el-button>
+    </el-alert>
 
     <el-table v-loading="loading" :data="projects" border stripe>
       <el-table-column prop="name" label="项目名称" min-width="180" />
@@ -88,9 +96,13 @@ onMounted(loadProjects);
           <el-button link type="danger" @click="removeProject(row)">删除</el-button>
         </template>
       </el-table-column>
+      <template #empty>
+        <el-empty v-if="!loading && !loadError" description="创建第一个项目，开始配置压测流程" :image-size="72">
+          <el-button @click="dialogVisible = true">创建项目</el-button>
+        </el-empty>
+        <span v-else>{{ loadError ? "暂无可显示的项目" : "正在加载项目…" }}</span>
+      </template>
     </el-table>
-
-    <el-empty v-if="!loading && projects.length === 0" description="还没有项目" />
 
     <el-dialog v-model="dialogVisible" title="创建项目" width="520px">
       <el-form label-width="92px">

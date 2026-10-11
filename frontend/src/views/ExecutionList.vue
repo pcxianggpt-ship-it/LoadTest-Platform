@@ -253,10 +253,10 @@ onMounted(async () => {
   <section v-loading="loading" class="page-section">
     <div class="page-toolbar">
       <div>
-        <h2>执行管理</h2>
+        <h1>执行管理</h1>
         <p>创建立即执行或定时执行，并从成功执行生成测试结果。</p>
       </div>
-      <el-select v-model="selectedProjectId" placeholder="选择项目" class="project-select">
+      <el-select v-model="selectedProjectId" placeholder="选择项目" aria-label="选择项目" class="project-select">
         <el-option v-for="project in projects" :key="project.id" :label="project.name" :value="project.id" />
       </el-select>
     </div>
@@ -265,6 +265,7 @@ onMounted(async () => {
       <el-select
         v-model="selectedTaskId"
         placeholder="搜索或选择计划"
+        aria-label="选择压测任务"
         class="task-select"
         filterable
         :filter-method="filterTasks"

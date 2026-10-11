@@ -240,10 +240,10 @@ onMounted(async () => {
   <section v-loading="loading" class="page-section">
     <div class="page-toolbar">
       <div>
-        <h2>数据清理</h2>
+        <h1>数据清理</h1>
         <p>配置业务数据库和压测成功后的清理 SQL，任务可按需绑定清理方案。</p>
       </div>
-      <el-select v-model="selectedProjectId" placeholder="选择项目" class="project-select">
+      <el-select v-model="selectedProjectId" placeholder="选择项目" aria-label="选择项目" class="project-select">
         <el-option v-for="project in projects" :key="project.id" :label="project.name" :value="project.id" />
       </el-select>
     </div>
@@ -251,7 +251,7 @@ onMounted(async () => {
     <div class="cleanup-layout">
       <div class="settings-block">
         <div class="block-toolbar">
-          <h3>业务数据库</h3>
+          <h2>业务数据库</h2>
           <el-button type="primary" @click="openDatabaseDialog()">新增业务库</el-button>
         </div>
         <el-table :data="databases" border stripe>
@@ -273,7 +273,7 @@ onMounted(async () => {
 
       <div class="settings-block">
         <div class="block-toolbar">
-          <h3>清理方案</h3>
+          <h2>清理方案</h2>
           <el-button type="primary" :disabled="databases.length === 0" @click="openPlanDialog()">新增方案</el-button>
         </div>
         <el-table :data="plans" border stripe>

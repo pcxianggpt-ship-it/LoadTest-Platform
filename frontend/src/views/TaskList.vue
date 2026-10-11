@@ -113,11 +113,11 @@ onMounted(async () => {
   <section v-loading="loading" class="page-section">
     <div class="page-toolbar">
       <div>
-        <h2>任务管理</h2>
+        <h1>任务管理</h1>
         <p>{{ selectedProject?.name || "选择项目后管理压测任务模板" }}</p>
       </div>
       <div class="toolbar-actions">
-        <el-select v-model="selectedProjectId" placeholder="选择项目" class="project-select">
+        <el-select v-model="selectedProjectId" placeholder="选择项目" aria-label="选择项目" class="project-select">
           <el-option v-for="project in projects" :key="project.id" :label="project.name" :value="project.id" />
         </el-select>
         <el-button type="primary" :disabled="!selectedProjectId" @click="createTask">创建任务</el-button>
@@ -148,8 +148,9 @@ onMounted(async () => {
           <el-button link type="danger" @click="removeTask(row)">删除</el-button>
         </template>
       </el-table-column>
+      <template #empty>
+        <el-empty v-if="!loading" :description="selectedProjectId ? '当前项目还没有任务' : '选择项目后查看压测任务'" :image-size="72" />
+      </template>
     </el-table>
-
-    <el-empty v-if="!loading && selectedProjectId && tasks.length === 0" description="当前项目还没有任务" />
   </section>
 </template>

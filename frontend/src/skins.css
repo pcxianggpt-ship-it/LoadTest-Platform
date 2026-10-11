@@ -1,0 +1,705 @@
+:root,
+:root[data-skin="cursor"] {
+  --color-canvas: #f7f7f4;
+  --color-canvas-soft: #fafaf7;
+  --color-surface: #ffffff;
+  --color-surface-strong: #e6e5e0;
+  --color-hairline: #e6e5e0;
+  --color-hairline-soft: #efeee8;
+  --color-hairline-strong: #cfcdc4;
+  --color-ink: #26251e;
+  --color-body: #5a5852;
+  --color-muted: #807d72;
+  --color-disabled: #a09c92;
+  --color-primary: #f54e00;
+  --color-primary-active: #d04200;
+  --color-on-primary: #ffffff;
+  --color-success: #1f8a65;
+  --color-success-text: #176649;
+  --color-success-soft: #edf6f1;
+  --color-error: #cf2d56;
+  --color-error-soft: #fcf0f3;
+  --color-warning: #886018;
+  --color-warning-soft: #faf5e9;
+  --el-color-primary-light-3: #df7b4d;
+  --el-color-primary-light-5: #e8a080;
+  --el-color-primary-light-7: #f1c6b3;
+  --el-color-primary-light-8: #f6d9cc;
+  --el-color-primary-light-9: #fbede6;
+  --el-color-primary-dark-2: #ab3600;
+  --el-color-success-light-8: #d2e6da;
+  --el-color-warning-light-8: #eadbb8;
+  --el-color-danger-light-8: #f4d5de;
+  --skin-sidebar-surface: var(--color-canvas);
+  --skin-sidebar-ink: var(--color-ink);
+  --skin-sidebar-muted: var(--color-body);
+  --skin-sidebar-border: var(--color-hairline);
+  --skin-nav-hover-surface: var(--color-hairline-soft);
+  --skin-nav-active-surface: var(--color-surface);
+  --skin-nav-active-ink: var(--color-ink);
+  --skin-nav-active-border: var(--color-hairline);
+  --skin-topbar-surface: var(--color-canvas);
+  --skin-heading-weight: 400;
+}
+
+:root[data-skin="classic"] {
+  --color-canvas: #eef2f7;
+  --color-canvas-soft: #f8fafc;
+  --color-surface: #ffffff;
+  --color-surface-strong: #e2e8f0;
+  --color-hairline: #d9e2ec;
+  --color-hairline-soft: #edf1f5;
+  --color-hairline-strong: #b8c5d4;
+  --color-ink: #1f2937;
+  --color-body: #526278;
+  --color-muted: #607086;
+  --color-disabled: #94a3b8;
+  --color-primary: #2563eb;
+  --color-primary-active: #1d4ed8;
+  --el-color-primary-light-3: #6083e4;
+  --el-color-primary-light-5: #8ea7ec;
+  --el-color-primary-light-7: #bbc9f3;
+  --el-color-primary-light-8: #d2dcf7;
+  --el-color-primary-light-9: #e8edfb;
+  --el-color-primary-dark-2: #173ead;
+  --skin-sidebar-surface: #172033;
+  --skin-sidebar-ink: #f8fafc;
+  --skin-sidebar-muted: #b6c2d3;
+  --skin-sidebar-border: #344257;
+  --skin-nav-hover-surface: #223047;
+  --skin-nav-active-surface: #263b59;
+  --skin-nav-active-ink: #ffffff;
+  --skin-nav-active-border: #395778;
+  --skin-topbar-surface: var(--color-surface);
+  --skin-heading-weight: 600;
+  --radius-card: 8px;
+}
+
+:root[data-skin="nvidia"] {
+  --font-sans: Inter, Arial, "Microsoft YaHei", sans-serif;
+  --radius-input: 2px;
+  --radius-card: 2px;
+  --color-canvas: #ffffff;
+  --color-canvas-soft: #f7f7f7;
+  --color-surface: #ffffff;
+  --color-surface-strong: #cccccc;
+  --color-hairline: #cccccc;
+  --color-hairline-soft: #e6e6e6;
+  --color-hairline-strong: #5e5e5e;
+  --color-ink: #000000;
+  --color-body: #1a1a1a;
+  --color-muted: #666666;
+  --color-disabled: #898989;
+  --color-primary: #76b900;
+  --color-primary-active: #5a8d00;
+  --color-on-primary: #000000;
+  --color-success: #3f8500;
+  --color-success-text: #356f00;
+  --color-success-soft: #f2f7eb;
+  --color-error: #c51b1b;
+  --color-error-soft: #fdf1f1;
+  --color-warning: #9f4800;
+  --color-warning-soft: #fff5e8;
+  --el-color-primary: var(--color-primary);
+  --el-color-primary-light-3: #9fcc4d;
+  --el-color-primary-light-5: #badc80;
+  --el-color-primary-light-7: #d6eab3;
+  --el-color-primary-light-8: #e4f1cc;
+  --el-color-primary-light-9: #f1f8e6;
+  --el-color-primary-dark-2: var(--color-primary-active);
+  --el-color-success-light-8: #d9e7cc;
+  --el-color-warning-light-8: #f5e0c9;
+  --el-color-danger-light-8: #f5d2d2;
+  --el-border-radius-small: 2px;
+  --el-border-radius-round: 2px;
+  --el-font-size-base: 16px;
+  --el-component-size: 44px;
+  --skin-sidebar-surface: #000000;
+  --skin-sidebar-ink: #ffffff;
+  --skin-sidebar-muted: #b3b3b3;
+  --skin-sidebar-border: #5e5e5e;
+  --skin-nav-hover-surface: #1a1a1a;
+  --skin-nav-active-surface: #1a1a1a;
+  --skin-nav-active-ink: #ffffff;
+  --skin-nav-active-border: #5e5e5e;
+  --skin-topbar-surface: #000000;
+  --skin-heading-weight: 700;
+}
+
+:root[data-skin="nvidia"] :is(.brand strong, .brand-mark, .mobile-brand strong, .nav-item.is-active) {
+  font-weight: 700;
+}
+:root[data-skin="nvidia"] .brand-mark span {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-left: 4px;
+  background: var(--color-primary);
+  font-size: 0;
+}
+:root[data-skin="nvidia"] .nav-item.is-active {
+  border-left: 3px solid var(--color-primary);
+}
+:root[data-skin="nvidia"] .nav-item.is-active .nav-icon {
+  color: var(--color-primary);
+}
+:root[data-skin="nvidia"] .sidebar-footer > span {
+  font-family: var(--font-sans);
+  font-weight: 700;
+}
+:root[data-skin="nvidia"] .topbar {
+  border-color: var(--skin-sidebar-border);
+  color: var(--skin-sidebar-ink);
+}
+:root[data-skin="nvidia"] :is(.topbar-workspace, .topbar-caption, .breadcrumb-divider) {
+  color: var(--skin-sidebar-muted);
+}
+:root[data-skin="nvidia"] :is(.sidebar, .navigation-drawer, .topbar, .page-toolbar) :focus-visible {
+  outline-color: var(--color-primary);
+}
+:root[data-skin="nvidia"] :is(.topbar, .navigation-drawer) :is(.icon-button, .skin-switcher) {
+  border: 1px solid var(--skin-sidebar-border);
+  background: transparent;
+  color: var(--skin-sidebar-ink);
+}
+:root[data-skin="nvidia"] :is(.topbar, .navigation-drawer) :is(.icon-button, .skin-switcher):hover {
+  border-color: var(--color-primary);
+  background: var(--skin-nav-hover-surface);
+}
+:root[data-skin="nvidia"] .page-section:not(.narrow-page) {
+  max-width: 1280px;
+}
+:root[data-skin="nvidia"] .page-toolbar {
+  position: relative;
+  align-items: center;
+  padding: var(--space-xl);
+  background: var(--skin-sidebar-surface);
+  color: var(--skin-sidebar-ink);
+}
+:root[data-skin="nvidia"] .page-toolbar::after {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 16px;
+  height: 16px;
+  background: var(--color-primary);
+  content: "";
+  pointer-events: none;
+}
+:root[data-skin="nvidia"] .page-toolbar h1 {
+  color: var(--skin-sidebar-ink);
+  font-size: 32px;
+  letter-spacing: 0;
+}
+:root[data-skin="nvidia"] .page-toolbar p {
+  color: var(--skin-sidebar-muted);
+  font-size: 15px;
+}
+:root[data-skin="nvidia"] .title-count {
+  border-color: var(--skin-sidebar-border);
+  border-radius: var(--radius-input);
+  background: var(--skin-nav-active-surface);
+  color: var(--skin-sidebar-ink);
+  font-family: var(--font-sans);
+}
+:root[data-skin="nvidia"] :is(.settings-block, .summary-cell, .summary-grid > .el-statistic, .narrow-page > .el-form, .report-content, .grafana-image-card) {
+  position: relative;
+}
+:root[data-skin="nvidia"] :is(.settings-block, .summary-cell, .summary-grid > .el-statistic, .narrow-page > .el-form, .report-content, .grafana-image-card)::after {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 12px;
+  height: 12px;
+  background: var(--color-primary);
+  content: "";
+  pointer-events: none;
+}
+:root[data-skin="nvidia"] :is(.settings-block h2, .report-content h1, .report-content h2, .report-content h3, .el-dialog__title, .el-message-box__title, .el-form-item__label, .el-table th.el-table__cell) {
+  font-weight: 700;
+  letter-spacing: 0;
+}
+:root[data-skin="nvidia"] .settings-block h2 {
+  font-size: 20px;
+}
+:root[data-skin="nvidia"] .page-section > .settings-block + .settings-block {
+  margin-top: 64px;
+}
+:root[data-skin="nvidia"] .summary-grid .el-statistic__number {
+  font-family: var(--font-sans);
+  font-size: 36px;
+  font-weight: 700;
+}
+:root[data-skin="nvidia"] .el-button {
+  --el-button-disabled-bg-color: var(--color-canvas-soft);
+  --el-button-disabled-border-color: var(--color-hairline);
+  --el-button-disabled-text-color: var(--color-disabled);
+  min-height: 44px;
+  font-weight: 700;
+}
+:root[data-skin="nvidia"] .el-button:not(.is-link):not(.is-text) {
+  min-height: 44px;
+  padding: 10px var(--space-lg);
+  font-size: 16px;
+}
+:root[data-skin="nvidia"] .el-button--primary:not(.is-link):not(.is-text) {
+  --el-button-text-color: var(--color-ink);
+  --el-button-bg-color: transparent;
+  --el-button-border-color: var(--color-primary);
+  --el-button-hover-text-color: var(--color-ink);
+  --el-button-hover-bg-color: var(--el-color-primary-light-9);
+  --el-button-hover-border-color: var(--color-primary);
+  --el-button-active-text-color: var(--color-ink);
+  --el-button-active-bg-color: transparent;
+  --el-button-active-border-color: var(--color-primary-active);
+  border-width: 2px;
+}
+:root[data-skin="nvidia"] .page-toolbar .el-button {
+  --el-button-text-color: var(--skin-sidebar-ink);
+  --el-button-bg-color: transparent;
+  --el-button-border-color: var(--skin-sidebar-ink);
+  --el-button-hover-text-color: var(--skin-sidebar-ink);
+  --el-button-hover-bg-color: var(--skin-nav-hover-surface);
+  --el-button-hover-border-color: var(--color-primary);
+  --el-button-active-text-color: var(--skin-sidebar-ink);
+  --el-button-active-bg-color: var(--skin-nav-hover-surface);
+  --el-button-active-border-color: var(--color-primary);
+}
+:root[data-skin="nvidia"] .page-toolbar .el-button--primary:not(.is-link):not(.is-text) {
+  --el-button-text-color: var(--color-on-primary);
+  --el-button-bg-color: var(--color-primary);
+  --el-button-border-color: var(--color-primary);
+  --el-button-hover-text-color: var(--color-on-primary);
+  --el-button-hover-bg-color: var(--color-primary);
+  --el-button-hover-border-color: var(--color-primary);
+  --el-button-active-text-color: var(--color-on-primary);
+  --el-button-active-bg-color: var(--color-primary-active);
+  --el-button-active-border-color: var(--color-primary-active);
+}
+:root[data-skin="nvidia"] .el-button--primary.is-link:hover {
+  color: var(--color-ink);
+  text-decoration: underline;
+  text-decoration-color: var(--color-primary-active);
+  text-underline-offset: 4px;
+}
+:root[data-skin="nvidia"] :is(.el-input__wrapper, .el-select__wrapper) {
+  min-height: 44px;
+  border-color: var(--color-hairline);
+}
+:root[data-skin="nvidia"] :is(.el-input__wrapper.is-focus, .el-select__wrapper.is-focused, .el-textarea__inner:focus) {
+  border-color: var(--color-primary);
+  outline: 1px solid var(--color-primary-active);
+}
+:root[data-skin="nvidia"] .el-input-number {
+  width: 160px;
+  max-width: 100%;
+}
+:root[data-skin="nvidia"] :is(.el-input-number__increase, .el-input-number__decrease) {
+  width: 44px;
+}
+:root[data-skin="nvidia"] .el-input-number .el-input__wrapper {
+  padding-right: 48px;
+  padding-left: 48px;
+}
+:root[data-skin="nvidia"] .image-size-row {
+  flex-wrap: wrap;
+}
+:root[data-skin="nvidia"] :is(.el-switch__core, .el-switch__action, .el-tag, .el-segmented, .el-segmented__item, .el-segmented__item-selected, code, .report-content .metric-cell) {
+  border-radius: var(--radius-input);
+}
+:root[data-skin="nvidia"] .el-switch {
+  height: 44px;
+  min-width: 44px;
+}
+:root[data-skin="nvidia"] .el-switch.is-checked .el-switch__core {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+}
+:root[data-skin="nvidia"] .el-switch.is-checked .el-switch__action {
+  background: var(--color-ink);
+}
+:root[data-skin="nvidia"] .status-dot {
+  border-radius: 1px;
+}
+:root[data-skin="nvidia"] .el-segmented {
+  --el-segmented-item-selected-bg-color: var(--color-ink);
+  --el-segmented-item-selected-color: var(--color-surface);
+}
+:root[data-skin="nvidia"] :is(.el-segmented__item, .el-tabs__item, .el-select-dropdown__item) {
+  min-height: 44px;
+}
+:root[data-skin="nvidia"] :is(.el-select-dropdown__item.is-selected, .el-tabs__item.is-active) {
+  color: var(--color-ink);
+  font-weight: 700;
+}
+:root[data-skin="nvidia"] .el-dropdown-menu__item:not(.is-disabled):is(:hover, :focus) {
+  background: var(--color-ink);
+  color: var(--color-surface);
+}
+:root[data-skin="nvidia"] .el-dropdown-menu__item:is(:hover, :focus) .skin-selected {
+  color: inherit;
+}
+:root[data-skin="nvidia"] .el-overlay {
+  background: rgb(0 0 0 / 50%);
+}
+:root[data-skin="nvidia"] .report-content p a {
+  color: #0046a4;
+  text-decoration: underline;
+}
+
+@media (max-width: 1023px) {
+  :root[data-skin="nvidia"] .sidebar {
+    display: none;
+  }
+  :root[data-skin="nvidia"] .navigation-toggle {
+    display: inline-grid;
+  }
+  :root[data-skin="nvidia"] .topbar-caption {
+    display: none;
+  }
+}
+@media (max-width: 767px) {
+  :root[data-skin="nvidia"] .page-toolbar {
+    padding: var(--space-lg) var(--space-base);
+  }
+  :root[data-skin="nvidia"] .page-toolbar h1 {
+    font-size: 28px;
+  }
+  :root[data-skin="nvidia"] .skin-switcher.el-button:not(.is-link):not(.is-text) {
+    padding: 0;
+  }
+  :root[data-skin="nvidia"] .page-section > .settings-block + .settings-block {
+    margin-top: var(--space-xl);
+  }
+}
+
+:root[data-skin="tesla"] {
+  --font-sans: "Universal Sans Text", -apple-system, Arial, "Microsoft YaHei", sans-serif;
+  --font-display: "Universal Sans Display", -apple-system, Arial, "Microsoft YaHei", sans-serif;
+  --radius-input: 4px;
+  --radius-card: 12px;
+  --color-canvas: #ffffff;
+  --color-canvas-soft: #f4f4f4;
+  --color-surface: #ffffff;
+  --color-surface-strong: #d0d1d2;
+  --color-hairline: #eeeeee;
+  --color-hairline-soft: #f4f4f4;
+  --color-hairline-strong: #d0d1d2;
+  --color-ink: #171a20;
+  --color-body: #393c41;
+  --color-muted: #5c5e62;
+  --color-disabled: #8e8e8e;
+  --color-primary: #3e6ae1;
+  --color-primary-active: #3457b1;
+  --color-on-primary: #ffffff;
+  --color-success: #393c41;
+  --color-success-text: #393c41;
+  --color-success-soft: #f4f4f4;
+  --color-error: #171a20;
+  --color-error-soft: #e8e8e8;
+  --color-warning: #393c41;
+  --color-warning-soft: #f4f4f4;
+  --el-color-primary: var(--color-ink);
+  --el-color-primary-light-3: #5d5f63;
+  --el-color-primary-light-5: #8b8d90;
+  --el-color-primary-light-7: #b9babb;
+  --el-color-primary-light-8: #d1d2d3;
+  --el-color-primary-light-9: #e8e8e9;
+  --el-color-primary-dark-2: var(--color-ink);
+  --el-color-success-light-3: var(--color-muted);
+  --el-color-success-light-5: var(--color-surface-strong);
+  --el-color-success-light-7: var(--color-hairline);
+  --el-color-success-light-8: #d0d1d2;
+  --el-color-success-dark-2: var(--color-ink);
+  --el-color-warning-light-3: var(--color-muted);
+  --el-color-warning-light-5: var(--color-surface-strong);
+  --el-color-warning-light-7: var(--color-hairline);
+  --el-color-warning-light-8: #d0d1d2;
+  --el-color-warning-dark-2: var(--color-ink);
+  --el-color-danger-light-3: var(--color-muted);
+  --el-color-danger-light-5: var(--color-surface-strong);
+  --el-color-danger-light-7: var(--color-hairline);
+  --el-color-danger-light-8: #d0d1d2;
+  --el-color-danger-dark-2: var(--color-ink);
+  --el-color-error-light-3: var(--color-muted);
+  --el-color-error-light-5: var(--color-surface-strong);
+  --el-color-error-light-7: var(--color-hairline);
+  --el-color-error-light-8: var(--color-surface-strong);
+  --el-color-error-dark-2: var(--color-ink);
+  --el-text-color-placeholder: var(--color-muted);
+  --el-border-radius-small: 4px;
+  --el-border-radius-round: 4px;
+  --el-component-size: 44px;
+  --skin-sidebar-surface: var(--color-canvas);
+  --skin-sidebar-ink: var(--color-ink);
+  --skin-sidebar-muted: var(--color-muted);
+  --skin-sidebar-border: transparent;
+  --skin-nav-hover-surface: var(--color-canvas-soft);
+  --skin-nav-active-surface: var(--color-canvas-soft);
+  --skin-nav-active-ink: var(--color-ink);
+  --skin-nav-active-border: transparent;
+  --skin-topbar-surface: rgb(255 255 255 / 75%);
+  --skin-heading-weight: 500;
+  line-height: 1.43;
+}
+
+:root[data-skin="tesla"] .brand-mark {
+  font-family: var(--font-sans);
+  font-weight: 500;
+  letter-spacing: 0;
+}
+:root[data-skin="tesla"] .brand-mark span {
+  color: var(--color-ink);
+}
+:root[data-skin="tesla"] .brand strong {
+  letter-spacing: 2px;
+}
+:root[data-skin="tesla"] .sidebar-footer > span {
+  font-family: var(--font-sans);
+}
+:root[data-skin="tesla"] .topbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  border-bottom: 0;
+  backdrop-filter: blur(16px);
+}
+:root[data-skin="tesla"] :is(.nav-item, .el-button, .icon-button, .el-input__wrapper, .el-select__wrapper, .el-textarea__inner, .el-dropdown-menu__item) {
+  transition: background-color 0.33s cubic-bezier(0.5, 0, 0, 0.75), border-color 0.33s cubic-bezier(0.5, 0, 0, 0.75), color 0.33s cubic-bezier(0.5, 0, 0, 0.75);
+}
+:root[data-skin="tesla"] .content {
+  padding-top: var(--space-xxl);
+  padding-bottom: var(--space-xxl);
+}
+:root[data-skin="tesla"] .page-section:not(.narrow-page) {
+  max-width: 1384px;
+}
+:root[data-skin="tesla"] .page-toolbar {
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-lg);
+  margin-bottom: var(--space-xxl);
+  padding: var(--space-lg) 0;
+  text-align: center;
+}
+:root[data-skin="tesla"] .page-toolbar > div:first-child {
+  max-width: 720px;
+}
+:root[data-skin="tesla"] .page-toolbar h1 {
+  justify-content: center;
+  font-family: var(--font-display);
+  font-size: 40px;
+  line-height: 1.2;
+  letter-spacing: normal;
+}
+:root[data-skin="tesla"] .page-toolbar p {
+  color: var(--color-muted);
+  line-height: 1.43;
+}
+:root[data-skin="tesla"] .page-toolbar .toolbar-actions {
+  justify-content: center;
+}
+:root[data-skin="tesla"] .page-toolbar .el-button:not(.is-link):not(.is-text) {
+  min-width: 160px;
+}
+:root[data-skin="tesla"] .page-toolbar .el-button--primary:not(.is-link):not(.is-text) {
+  min-width: 200px;
+}
+:root[data-skin="tesla"] .title-count {
+  border: 0;
+  border-radius: var(--radius-input);
+  background: var(--color-canvas-soft);
+  color: var(--color-muted);
+  font-family: var(--font-sans);
+}
+:root[data-skin="tesla"] :is(.settings-block, .summary-cell, .summary-grid > .el-statistic, .narrow-page > .el-form, .action-strip) {
+  border: 0;
+}
+:root[data-skin="tesla"] :is(.summary-cell, .summary-grid > .el-statistic) {
+  background: var(--color-canvas-soft);
+}
+:root[data-skin="tesla"] :is(.settings-block, .narrow-page > .el-form, .action-strip) {
+  background: var(--color-surface);
+}
+:root[data-skin="tesla"] .settings-block {
+  padding: var(--space-xl);
+}
+:root[data-skin="tesla"] .page-section > .settings-block + .settings-block {
+  margin-top: var(--space-xxl);
+}
+:root[data-skin="tesla"] :is(.settings-block h2, .report-content h1, .report-content h2, .report-content h3, .el-dialog__title, .el-message-box__title, .report-content .metric-cell-warning, .report-content .metric-cell-critical, strong, b) {
+  font-weight: 500;
+  letter-spacing: normal;
+}
+:root[data-skin="tesla"] .summary-grid .el-statistic__number {
+  font-family: var(--font-display);
+  font-size: 40px;
+  font-weight: 500;
+}
+:root[data-skin="tesla"] .el-button {
+  --el-button-bg-color: var(--color-surface);
+  --el-button-text-color: var(--color-body);
+  --el-button-hover-bg-color: var(--color-canvas-soft);
+  --el-button-hover-text-color: var(--color-ink);
+  --el-button-hover-border-color: transparent;
+  --el-button-active-bg-color: var(--color-surface-strong);
+  --el-button-active-border-color: transparent;
+  --el-button-disabled-bg-color: var(--color-canvas-soft);
+  --el-button-disabled-border-color: transparent;
+  --el-button-disabled-text-color: var(--color-disabled);
+  font-weight: 500;
+}
+:root[data-skin="tesla"] .el-button:not(.is-link):not(.is-text) {
+  min-height: 44px;
+  padding: 4px var(--space-base);
+  border: 3px solid transparent;
+}
+:root[data-skin="tesla"] .el-button--primary:not(.is-link):not(.is-text) {
+  --el-button-bg-color: var(--color-primary);
+  --el-button-text-color: var(--color-on-primary);
+  --el-button-hover-bg-color: var(--color-primary-active);
+  --el-button-hover-text-color: var(--color-on-primary);
+  --el-button-active-bg-color: var(--color-primary-active);
+  --el-button-active-text-color: var(--color-on-primary);
+}
+:root[data-skin="tesla"] .el-button.is-link {
+  min-height: 44px;
+  font-weight: 400;
+}
+:root[data-skin="tesla"] .el-button--primary.is-link {
+  --el-button-text-color: var(--color-muted);
+  --el-button-hover-text-color: var(--color-ink);
+}
+:root[data-skin="tesla"] .el-button.is-link:hover {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+:root[data-skin="tesla"] .icon-button {
+  border-color: transparent;
+}
+:root[data-skin="tesla"] :is(.el-input__wrapper, .el-select__wrapper, .el-textarea__inner) {
+  border-color: transparent;
+  background: var(--color-canvas-soft);
+}
+:root[data-skin="tesla"] :is(.el-input__wrapper, .el-select__wrapper) {
+  min-height: 44px;
+}
+:root[data-skin="tesla"] :is(.el-input__wrapper:hover, .el-select__wrapper:hover, .el-textarea__inner:hover) {
+  border-color: transparent;
+}
+:root[data-skin="tesla"] :is(.el-input__wrapper.is-focus, .el-select__wrapper.is-focused, .el-textarea__inner:focus) {
+  border-color: var(--color-ink);
+  outline: 1px solid var(--color-ink);
+}
+:root[data-skin="tesla"] .el-input-number {
+  width: 160px;
+  max-width: 100%;
+}
+:root[data-skin="tesla"] :is(.el-input-number__increase, .el-input-number__decrease) {
+  width: 44px;
+  border-color: transparent;
+}
+:root[data-skin="tesla"] :is(.el-input-number__increase, .el-input-number__decrease):hover {
+  color: var(--color-ink);
+}
+:root[data-skin="tesla"] .el-input-number .el-input__wrapper {
+  padding-right: 48px;
+  padding-left: 48px;
+}
+:root[data-skin="tesla"] .image-size-row {
+  flex-wrap: wrap;
+}
+:root[data-skin="tesla"] :is(.el-tag, .el-switch__core, .el-switch__action, .el-segmented, .el-segmented__item, .el-segmented__item-selected, .el-date-table-cell__text) {
+  border-radius: var(--radius-input);
+}
+:root[data-skin="tesla"] .el-switch {
+  height: 44px;
+  min-width: 44px;
+}
+:root[data-skin="tesla"] .el-segmented {
+  --el-segmented-item-selected-bg-color: var(--color-ink);
+  --el-segmented-item-selected-color: var(--color-surface);
+}
+:root[data-skin="tesla"] :is(.el-segmented__item, .el-select-dropdown__item) {
+  min-height: 44px;
+}
+:root[data-skin="tesla"] .el-dropdown-menu__item:not(.is-disabled):is(:hover, :focus) {
+  background: var(--color-canvas-soft);
+  color: var(--color-ink);
+}
+:root[data-skin="tesla"] .el-table {
+  --el-table-header-bg-color: var(--color-surface);
+  --el-table-header-text-color: var(--color-ink);
+  border: 0;
+  border-radius: 0;
+}
+:root[data-skin="tesla"] .el-table :is(th, td).el-table__cell {
+  border-bottom: 0;
+}
+:root[data-skin="tesla"] .el-table td.el-table__cell {
+  height: 64px;
+}
+:root[data-skin="tesla"] .el-table .el-table-fixed-column--right.is-first-column::before {
+  border-left: 0;
+}
+:root[data-skin="tesla"] :is(.el-dialog, .el-message-box, .report-content, .grafana-image-card, .el-alert, .report-content h2, .report-content pre, .report-content .grafana-image-figure img) {
+  border: 0;
+}
+:root[data-skin="tesla"] .el-overlay {
+  background: rgb(128 128 128 / 65%);
+}
+:root[data-skin="tesla"] .report-content :is(table, th, td) {
+  border: 0;
+}
+:root[data-skin="tesla"] .report-content a {
+  color: var(--color-muted);
+  text-decoration: underline;
+}
+:root[data-skin="tesla"] .el-loading-spinner .path {
+  stroke: var(--color-ink);
+}
+:root[data-skin="tesla"] .el-loading-spinner .el-loading-text {
+  color: var(--color-ink);
+}
+
+@media (max-width: 1023px) {
+  :root[data-skin="tesla"] .topbar-caption {
+    display: none;
+  }
+}
+@media (max-width: 767px) {
+  :root[data-skin="tesla"] .content {
+    padding-top: var(--space-lg);
+    padding-bottom: var(--space-lg);
+  }
+  :root[data-skin="tesla"] .page-toolbar {
+    margin-bottom: var(--space-xl);
+  }
+  :root[data-skin="tesla"] .page-toolbar h1 {
+    font-size: 28px;
+  }
+  :root[data-skin="tesla"] .page-toolbar > :is(.toolbar-actions, .el-button) {
+    width: 100%;
+  }
+  :root[data-skin="tesla"] .page-toolbar .toolbar-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  :root[data-skin="tesla"] .page-toolbar .el-button:not(.is-link):not(.is-text) {
+    width: 100%;
+    min-width: 0;
+  }
+  :root[data-skin="tesla"] .page-toolbar .project-select {
+    flex: 0 0 auto;
+    width: 100%;
+  }
+  :root[data-skin="tesla"] .skin-switcher.el-button:not(.is-link):not(.is-text) {
+    padding: 0;
+  }
+  :root[data-skin="tesla"] .settings-block {
+    padding: var(--space-base);
+  }
+  :root[data-skin="tesla"] .page-section > .settings-block + .settings-block {
+    margin-top: var(--space-xl);
+  }
+}

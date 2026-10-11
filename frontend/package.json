@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
-    "test": "node scripts/test-date-time.mjs && node scripts/test-task-editor-defaults.mjs && node scripts/test-execution-task-select.mjs && node scripts/test-list-sorting.mjs && node scripts/test-execution-edit.mjs && node scripts/test-result-detail-sections.mjs && node scripts/test-report-status-polling.mjs && node scripts/test-project-detail-grafana.mjs && node scripts/test-current-project-store.mjs",
+    "test": "node scripts/test-date-time.mjs && node scripts/test-task-editor-defaults.mjs && node scripts/test-execution-task-select.mjs && node scripts/test-list-sorting.mjs && node scripts/test-execution-edit.mjs && node scripts/test-result-detail-sections.mjs && node scripts/test-report-status-polling.mjs && node scripts/test-project-detail-grafana.mjs && node scripts/test-current-project-store.mjs && node scripts/test-skin.mjs",
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview --host 0.0.0.0"
   },

@@ -70,11 +70,11 @@ onMounted(async () => {
   <section v-loading="loading" class="page-section">
     <div class="page-toolbar">
       <div>
-        <h2>报告生成</h2>
+        <h1>报告生成</h1>
         <p>{{ selectedProject?.name || "选择项目后查看已生成报告" }}</p>
       </div>
       <div class="toolbar-actions">
-        <el-select v-model="selectedProjectId" placeholder="选择项目" class="project-select">
+        <el-select v-model="selectedProjectId" placeholder="选择项目" aria-label="选择项目" class="project-select">
           <el-option v-for="project in projects" :key="project.id" :label="project.name" :value="project.id" />
         </el-select>
         <el-button :disabled="!selectedProjectId" @click="router.push(`/results?projectId=${selectedProjectId}`)">从结果生成</el-button>
@@ -100,8 +100,9 @@ onMounted(async () => {
           <el-button link type="danger" @click="removeReport(row)">删除</el-button>
         </template>
       </el-table-column>
+      <template #empty>
+        <el-empty v-if="!loading" :description="selectedProjectId ? '当前项目还没有报告' : '选择项目后查看测试报告'" :image-size="72" />
+      </template>
     </el-table>
-
-    <el-empty v-if="!loading && selectedProjectId && reports.length === 0" description="当前项目还没有报告" />
   </section>
 </template>

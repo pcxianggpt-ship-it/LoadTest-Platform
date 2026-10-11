@@ -159,19 +159,19 @@ onMounted(loadDetail);
   <section v-loading="loading" class="page-section">
     <div class="page-toolbar">
       <div>
-        <h2>{{ project?.name || "项目详情" }}</h2>
+        <h1>{{ project?.name || "项目详情" }}</h1>
         <p>{{ project?.environmentName }} · {{ project?.description || "暂无描述" }}</p>
       </div>
       <div class="toolbar-actions">
         <el-button @click="router.push('/')">返回项目</el-button>
         <el-button type="primary" @click="router.push(`/tasks?projectId=${projectId}`)">任务管理</el-button>
-        <el-button type="success" @click="router.push(`/executions?projectId=${projectId}`)">执行管理</el-button>
+        <el-button @click="router.push(`/executions?projectId=${projectId}`)">执行管理</el-button>
       </div>
     </div>
 
     <div class="two-column">
       <section class="settings-block">
-        <h3>JMeter 服务器</h3>
+        <h2>JMeter 服务器</h2>
         <el-form label-width="110px">
           <el-form-item label="名称"><el-input v-model="jmeterForm.name" /></el-form-item>
           <el-form-item label="主机"><el-input v-model="jmeterForm.host" /></el-form-item>
@@ -193,18 +193,18 @@ onMounted(loadDetail);
       </section>
 
       <section class="settings-block">
-        <h3>数据源</h3>
+        <h2>数据源</h2>
         <el-form label-width="110px">
           <el-divider content-position="left">InfluxDB</el-divider>
           <el-form-item label="名称"><el-input v-model="influxForm.name" /></el-form-item>
           <el-form-item label="地址"><el-input v-model="influxForm.baseUrl" /></el-form-item>
           <el-form-item label="库名"><el-input v-model="influxForm.databaseName" /></el-form-item>
-          <el-form-item label="扩展配置"><el-input v-model="influxForm.extraConfigJson" type="textarea" :rows="2" /></el-form-item>
+          <el-form-item label="扩展配置"><el-input v-model="influxForm.extraConfigJson" class="code-input" type="textarea" :rows="2" /></el-form-item>
           <el-form-item><el-button @click="saveDatasource('influxdb')">保存 InfluxDB</el-button></el-form-item>
           <el-divider content-position="left">Prometheus</el-divider>
           <el-form-item label="名称"><el-input v-model="prometheusForm.name" /></el-form-item>
           <el-form-item label="地址"><el-input v-model="prometheusForm.baseUrl" /></el-form-item>
-          <el-form-item label="扩展配置"><el-input v-model="prometheusForm.extraConfigJson" type="textarea" :rows="2" /></el-form-item>
+          <el-form-item label="扩展配置"><el-input v-model="prometheusForm.extraConfigJson" class="code-input" type="textarea" :rows="2" /></el-form-item>
           <el-form-item><el-button @click="saveDatasource('prometheus')">保存 Prometheus</el-button></el-form-item>
           <el-divider content-position="left">Grafana</el-divider>
           <el-form-item label="名称"><el-input v-model="grafanaForm.name" /></el-form-item>
@@ -212,7 +212,7 @@ onMounted(loadDetail);
           <el-form-item label="用户名"><el-input v-model="grafanaForm.username" /></el-form-item>
           <el-form-item label="密码"><el-input v-model="grafanaForm.passwordEncrypted" type="password" show-password /></el-form-item>
           <el-form-item label="Token"><el-input v-model="grafanaForm.tokenEncrypted" type="password" show-password /></el-form-item>
-          <el-form-item label="扩展配置"><el-input v-model="grafanaForm.extraConfigJson" type="textarea" :rows="8" /></el-form-item>
+          <el-form-item label="扩展配置"><el-input v-model="grafanaForm.extraConfigJson" class="code-input" type="textarea" :rows="8" /></el-form-item>
           <el-form-item><el-button @click="saveDatasource('grafana')">保存 Grafana</el-button></el-form-item>
         </el-form>
       </section>

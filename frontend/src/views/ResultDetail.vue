@@ -126,7 +126,7 @@ onMounted(loadResult);
   <section v-loading="loading" class="page-section">
     <div class="page-toolbar">
       <div>
-        <h2>{{ result?.name || "测试结果" }}</h2>
+        <h1>{{ result?.name || "测试结果" }}</h1>
         <p>执行编号：{{ result?.executionId || "-" }}</p>
       </div>
       <div class="toolbar-actions">
@@ -149,7 +149,7 @@ onMounted(loadResult);
     </div>
 
     <section class="settings-block">
-      <h3>分析结论</h3>
+      <h2>分析结论</h2>
       <el-alert
         v-if="collectionError"
         class="result-alert"
@@ -167,10 +167,10 @@ onMounted(loadResult);
 
     <section class="settings-block">
       <div class="block-toolbar">
-        <h3>Grafana 图片归档</h3>
+        <h2>Grafana 图片归档</h2>
         <el-button v-if="result && result.status !== 'failed'" size="small" @click="imageDialogVisible = true">导出图片</el-button>
       </div>
-      <el-empty v-if="!images.length" description="暂无归档图片" />
+      <el-empty v-if="!images.length" description="暂无归档图片" :image-size="72" />
       <div v-else class="grafana-image-grid">
         <figure v-for="image in images" :key="image.id" class="grafana-image-card">
           <img :src="image.downloadUrl" :alt="image.title" />
@@ -183,17 +183,17 @@ onMounted(loadResult);
     </section>
 
     <section class="settings-block">
-      <h3>Prometheus 资源指标</h3>
+      <h2>Prometheus 资源指标</h2>
       <MetricTable :metrics="prometheusMetrics" />
     </section>
 
     <section class="settings-block">
-      <h3>K8s Pod 资源指标</h3>
+      <h2>K8s Pod 资源指标</h2>
       <MetricTable :metrics="k8sPodMetrics" />
     </section>
 
     <section class="settings-block">
-      <h3>JMeter 指标</h3>
+      <h2>JMeter 指标</h2>
       <MetricTable :metrics="jmeterMetrics" />
     </section>
 

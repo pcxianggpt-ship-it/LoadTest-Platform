@@ -77,10 +77,10 @@ onMounted(async () => {
   <section v-loading="loading" class="page-section">
     <div class="page-toolbar">
       <div>
-        <h2>结果归档分析</h2>
+        <h1>结果归档分析</h1>
         <p>{{ selectedProject?.name || "选择项目后查看压测结果和分析结论" }}</p>
       </div>
-      <el-select v-model="selectedProjectId" placeholder="选择项目" class="project-select">
+      <el-select v-model="selectedProjectId" placeholder="选择项目" aria-label="选择项目" class="project-select">
         <el-option v-for="project in projects" :key="project.id" :label="project.name" :value="project.id" />
       </el-select>
     </div>
@@ -102,12 +102,13 @@ onMounted(async () => {
       <el-table-column label="操作" width="230" fixed="right">
         <template #default="{ row }">
           <el-button link type="primary" @click="router.push(`/results/${row.id}`)">分析详情</el-button>
-          <el-button v-if="row.status !== 'failed'" link type="success" @click="createReport(row)">生成报告</el-button>
+          <el-button v-if="row.status !== 'failed'" link type="primary" @click="createReport(row)">生成报告</el-button>
           <el-button link type="danger" @click="removeResult(row)">删除</el-button>
         </template>
       </el-table-column>
+      <template #empty>
+        <el-empty v-if="!loading" :description="selectedProjectId ? '当前项目还没有归档结果' : '选择项目后查看归档结果'" :image-size="72" />
+      </template>
     </el-table>
-
-    <el-empty v-if="!loading && selectedProjectId && results.length === 0" description="当前项目还没有归档结果" />
   </section>
 </template>
