@@ -25,5 +25,13 @@
 - 修改前先读文件，遵循现有风格
 - 不主动创建非必要文件，除非明确要求
 
+### AI 上下文读取规则
+- 默认禁止读取 `offline-dist/`、`backend/target/`、`frontend/dist/`、`frontend/node_modules/`、`*.jar`、`*.tar.gz`、前端构建产物
+- 默认不读取 `frontend/package-lock.json`，除非任务涉及依赖安装、依赖版本或锁文件冲突
+- 修改功能前先用 `rg --files` 和 `rg 关键词` 定位相关文件，只读取必要文件
+- 优先读取源码、接口、迁移 SQL、对应测试，不做全仓库扫描
+- 大型历史计划文档仅在任务明确要求时读取
+- 需要项目概览时优先读取 `docs/2026-07-04-v0.2.0-项目结构速览.md`
+
 ### AI 指令文件同步
 - 修改 CLAUDE.md 协作规范时同步更新 AGENTS.md，同一次提交
