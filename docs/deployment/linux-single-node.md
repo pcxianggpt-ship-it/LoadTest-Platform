@@ -1,167 +1,30 @@
 # Linux 单机部署指南
 
-本文档用于把压力测试平台 MVP 部署到一台 Linux 主机上。推荐目录为 `/opt/loadtest-platform`，数据库使用本机 SQLite 文件，后端由 systemd 管理，前端由 nginx 或其他静态文件服务托管。
+平台以前后端合一的 JAR 部署，默认由 systemd 管理，在 `8080` 端口提供页面和 API，无需安装 Nginx。数据库使用本机 SQLite 文件，首次启动时 Flyway 会创建表结构。
 
 ## 1. 环境要求
 
-- JDK 17：后端 Spring Boot 运行环境。
-- Maven 3.9+：用于在服务器上构建后端；也可以在开发机打好 jar 后上传。
-- Node.js 20+：用于构建前端；也可以在开发机执行 `npm run build` 后上传 `frontend/dist`。
-- SQLite：不要求单独启动服务，运行时由 JDBC 访问数据库文件。
-- nginx：用于托管前端静态文件并反向代理后端 API。
+- 构建机：JDK 17、Maven 3.9+、Node.js 20+ 和 npm。
+- 部署机：使用 systemd 的 Linux 主机。离线包自带 Java 17 运行时，运行时的架构须与部署机一致。
 
-检查命令：
+## 2. 打包与部署
 
-```bash
-java -version
-mvn -version
-node -v
-npm -v
-sqlite3 --version
-nginx -v
-```
-
-## 2. 目录规划
-
-```text
-/opt/loadtest-platform/
-  backend/
-    loadtest-platform.jar
-    start.sh
-  frontend/
-    index.html
-    assets/
-  data/
-    loadtest-platform.db
-  logs/
-```
-
-创建目录：
+离线部署请按 [README 的打包与部署步骤](../../README.md#打包) 构建并安装。也可在目标服务器的项目根目录从源码部署：
 
 ```bash
-sudo mkdir -p /opt/loadtest-platform/backend
-sudo mkdir -p /opt/loadtest-platform/frontend
-sudo mkdir -p /opt/loadtest-platform/data
-sudo mkdir -p /opt/loadtest-platform/logs
-sudo chown -R loadtest:loadtest /opt/loadtest-platform
+RUNTIME_SOURCE=/path/to/linux-java-17 bash backend/scripts/deploy-backend.sh
 ```
 
-如果没有专用用户，可以创建一个：
+部署脚本会配置服务，默认将 JAR 和启动脚本放在 `/opt/loadtest-platform/backend/`，Java 放在 `runtime/`，数据库放在 `data/loadtest-platform.db`。
 
-```bash
-sudo useradd --system --home /opt/loadtest-platform --shell /sbin/nologin loadtest
-```
-
-## 3. 构建后端
-
-在项目根目录执行：
-
-```bash
-cd backend
-mvn clean package
-```
-
-构建完成后复制 jar：
-
-```bash
-sudo cp target/loadtest-platform-backend-0.1.0-SNAPSHOT.jar /opt/loadtest-platform/backend/loadtest-platform.jar
-sudo cp scripts/start.sh /opt/loadtest-platform/backend/start.sh
-sudo chmod +x /opt/loadtest-platform/backend/start.sh
-sudo chown -R loadtest:loadtest /opt/loadtest-platform/backend
-```
-
-后端数据库路径使用：
-
-```text
-jdbc:sqlite:/opt/loadtest-platform/data/loadtest-platform.db
-```
-
-首次启动时 Flyway 会自动创建表结构。
-
-## 4. 构建前端
-
-在项目根目录执行：
-
-```bash
-bash frontend/scripts/deploy-frontend.sh
-```
-
-前端默认使用同源 API，也就是浏览器请求 `/api/...`，由 nginx 反向代理到后端。因此单机部署时不要把 `VITE_API_BASE_URL` 设置为 `http://服务器IP:8080` 或 `/api`，否则会引入跨域或 `/api/api/...` 的重复路径问题。
-
-脚本会自动执行依赖安装、前端构建、构建产物检查、同步到 `/opt/loadtest-platform/frontend`，并重新加载 nginx。
-
-如果需要自定义部署目录或用户：
-
-```bash
-APP_HOME=/opt/loadtest-platform APP_USER=loadtest APP_GROUP=loadtest bash frontend/scripts/deploy-frontend.sh
-```
-
-如果只想构建和同步，不重新加载 nginx：
-
-```bash
-RELOAD_NGINX=false bash frontend/scripts/deploy-frontend.sh
-```
-
-如果确实不使用 nginx 反向代理，而是让浏览器直接访问后端地址，构建前才需要设置完整后端地址：
-
-```bash
-export VITE_API_BASE_URL=http://your-server:8080
-npm run build
-```
-
-这种方式需要后端额外配置 CORS。MVP 推荐使用 nginx 反向代理方式。
-
-## 5. systemd 启动后端
-
-复制服务模板：
-
-```bash
-sudo cp backend/scripts/loadtest-platform.service /etc/systemd/system/loadtest-platform.service
-sudo systemctl daemon-reload
-sudo systemctl enable loadtest-platform
-sudo systemctl start loadtest-platform
-```
-
-查看状态和日志：
+## 3. 服务状态和日志
 
 ```bash
 sudo systemctl status loadtest-platform
 journalctl -u loadtest-platform -f
 ```
 
-## 6. nginx 托管前端
-
-示例配置：
-
-```nginx
-server {
-    listen 80;
-    server_name _;
-
-    root /opt/loadtest-platform/frontend;
-    index index.html;
-
-    location / {
-        try_files $uri $uri/ /index.html;
-    }
-
-    location /api/ {
-        proxy_pass http://127.0.0.1:8080/api/;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    }
-}
-```
-
-启用配置后执行：
-
-```bash
-sudo nginx -t
-sudo systemctl reload nginx
-```
-
-## 7. JMeter 与数据源要求
+## 4. JMeter 与数据源要求
 
 - JMeter 服务器可以与平台在同一台机器，也可以是另一台 Linux 主机。
 - 平台通过 SSH 登录 JMeter 服务器执行命令。
@@ -173,7 +36,7 @@ sudo systemctl reload nginx
 {"instances":["10.0.0.11:9100","10.0.0.12:9100"]}
 ```
 
-## 8. SQLite 备份
+## 5. SQLite 备份
 
 停止服务后备份最稳妥：
 
@@ -189,22 +52,16 @@ sudo systemctl start loadtest-platform
 sqlite3 /opt/loadtest-platform/data/loadtest-platform.db ".backup '/opt/loadtest-platform/data/loadtest-platform.db.$(date +%Y%m%d%H%M%S).bak'"
 ```
 
-## 9. 升级流程
+## 6. 升级
 
-```bash
-sudo systemctl stop loadtest-platform
-sudo cp /opt/loadtest-platform/data/loadtest-platform.db /opt/loadtest-platform/data/loadtest-platform.db.$(date +%Y%m%d%H%M%S).bak
-sudo cp backend/target/loadtest-platform-backend-0.1.0-SNAPSHOT.jar /opt/loadtest-platform/backend/loadtest-platform.jar
-sudo rsync -av --delete frontend/dist/ /opt/loadtest-platform/frontend/
-sudo chown -R loadtest:loadtest /opt/loadtest-platform
-sudo systemctl start loadtest-platform
-```
+构建新的离线包后，沿用原部署参数重新执行部署脚本。脚本默认备份现有 SQLite 数据库，并在更新应用后重启服务。
 
-## 10. 验证
+## 7. 验证
 
 ```bash
 curl http://127.0.0.1:8080/api/projects
-curl http://127.0.0.1/
+curl http://127.0.0.1:8080/health
+curl http://127.0.0.1:8080/
 ```
 
 浏览器访问服务器地址后，验证以下最小闭环：

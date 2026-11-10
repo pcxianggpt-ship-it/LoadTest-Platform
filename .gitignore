@@ -4,3 +4,4 @@ backend/data/*
 frontend/node_modules/
 frontend/dist/
 frontend/dev-server*.log
+offline-dist/

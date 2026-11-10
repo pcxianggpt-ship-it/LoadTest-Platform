@@ -6,16 +6,15 @@ SERVICE_NAME="${SERVICE_NAME:-loadtest-platform}"
 APP_USER="${APP_USER:-loadtest}"
 APP_GROUP="${APP_GROUP:-${APP_USER}}"
 SERVER_PORT="${SERVER_PORT:-8080}"
-JAVA_HOME="${JAVA_HOME:-/opt/jdk-17.0.17}"
 BACKUP_DATABASE="${BACKUP_DATABASE:-true}"
 
 PACKAGE_FILE="${1:-}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 DEPLOY_BACKEND_DIR="${APP_HOME}/backend"
-DEPLOY_FRONTEND_DIR="${APP_HOME}/frontend"
 DEPLOY_DATA_DIR="${APP_HOME}/data"
 DEPLOY_LOG_DIR="${APP_HOME}/logs"
+DEPLOY_RUNTIME_DIR="${APP_HOME}/runtime"
 DEPLOY_JAR="${DEPLOY_BACKEND_DIR}/loadtest-platform.jar"
 DEPLOY_START_SH="${DEPLOY_BACKEND_DIR}/start.sh"
 SERVICE_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
@@ -84,8 +83,12 @@ extract_package() {
     echo "Invalid package: no root directory found" >&2
     exit 1
   fi
-  if [[ ! -f "${package_root}/backend/loadtest-platform.jar" || ! -f "${package_root}/backend/start.sh" || ! -f "${package_root}/frontend/index.html" ]]; then
-    echo "Invalid package: required backend or frontend files are missing" >&2
+  if [[ ! -f "${package_root}/backend/loadtest-platform.jar" || ! -f "${package_root}/backend/start.sh" || ! -f "${package_root}/backend/loadtest-platform.service" || ! -x "${package_root}/runtime/bin/java" || ! -f "${package_root}/manifest.txt" ]]; then
+    echo "Invalid package: required application or Java runtime files are missing" >&2
+    exit 1
+  fi
+  if ! grep -Fx 'frontend=embedded' "${package_root}/manifest.txt" >/dev/null; then
+    echo "Invalid package: rebuild with the embedded frontend" >&2
     exit 1
   fi
   printf '%s\n' "${package_root}"
@@ -105,7 +108,6 @@ install_service_file() {
     -e "s|^Group=.*|Group=${APP_GROUP}|" \
     -e "s|^WorkingDirectory=.*|WorkingDirectory=${DEPLOY_BACKEND_DIR}|" \
     -e "s|^Environment=APP_HOME=.*|Environment=APP_HOME=${APP_HOME}|" \
-    -e "s|^Environment=JAVA_HOME=.*|Environment=JAVA_HOME=${JAVA_HOME}|" \
     -e "s|^Environment=SPRING_DATASOURCE_URL=.*|Environment=SPRING_DATASOURCE_URL=jdbc:sqlite:${DEPLOY_DATA_DIR}/loadtest-platform.db|" \
     -e "s|^Environment=SERVER_PORT=.*|Environment=SERVER_PORT=${SERVER_PORT}|" \
     -e "s|^ExecStart=.*|ExecStart=${DEPLOY_START_SH}|" \
@@ -118,7 +120,7 @@ publish_files() {
   local package_root="$1"
 
   ensure_user
-  run_as_root mkdir -p "${DEPLOY_BACKEND_DIR}" "${DEPLOY_FRONTEND_DIR}" "${DEPLOY_DATA_DIR}" "${DEPLOY_LOG_DIR}"
+  run_as_root mkdir -p "${DEPLOY_BACKEND_DIR}" "${DEPLOY_DATA_DIR}" "${DEPLOY_LOG_DIR}" "${DEPLOY_RUNTIME_DIR}"
   backup_database
 
   run_as_root cp "${package_root}/backend/loadtest-platform.jar" "${DEPLOY_JAR}"
@@ -127,11 +129,12 @@ publish_files() {
   install_service_file "${package_root}"
 
   if command -v rsync >/dev/null 2>&1; then
-    run_as_root rsync -a --delete "${package_root}/frontend/" "${DEPLOY_FRONTEND_DIR}/"
+    run_as_root rsync -a --delete "${package_root}/runtime/" "${DEPLOY_RUNTIME_DIR}/"
   else
-    run_as_root rm -rf "${DEPLOY_FRONTEND_DIR:?}/"*
-    run_as_root cp -R "${package_root}/frontend/." "${DEPLOY_FRONTEND_DIR}/"
+    run_as_root rm -rf "${DEPLOY_RUNTIME_DIR:?}/"*
+    run_as_root cp -a "${package_root}/runtime/." "${DEPLOY_RUNTIME_DIR}/"
   fi
+  run_as_root chmod +x "${DEPLOY_RUNTIME_DIR}/bin/java"
 
   run_as_root chown -R "${APP_USER}:${APP_GROUP}" "${APP_HOME}"
 }

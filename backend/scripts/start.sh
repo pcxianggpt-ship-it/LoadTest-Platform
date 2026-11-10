@@ -6,36 +6,16 @@ BACKEND_HOME="${BACKEND_HOME:-${APP_HOME}/backend}"
 DATA_DIR="${DATA_DIR:-${APP_HOME}/data}"
 LOG_DIR="${LOG_DIR:-${APP_HOME}/logs}"
 JAR_PATH="${JAR_PATH:-${BACKEND_HOME}/loadtest-platform.jar}"
+BUNDLED_JAVA="${APP_HOME}/runtime/bin/java"
 
 mkdir -p "${DATA_DIR}" "${LOG_DIR}"
 
 export SPRING_DATASOURCE_URL="${SPRING_DATASOURCE_URL:-jdbc:sqlite:${DATA_DIR}/loadtest-platform.db}"
 export SERVER_PORT="${SERVER_PORT:-8080}"
-export LOADTEST_FRONTEND_DIR="${LOADTEST_FRONTEND_DIR:-${APP_HOME}/frontend}"
 
-resolve_java() {
-  if [[ -n "${JAVA_BIN:-}" && -x "${JAVA_BIN}" ]]; then
-    printf '%s\n' "${JAVA_BIN}"
-    return
-  fi
-  if [[ -n "${JAVA_HOME:-}" && -x "${JAVA_HOME}/bin/java" ]]; then
-    printf '%s\n' "${JAVA_HOME}/bin/java"
-    return
-  fi
-  if command -v java >/dev/null 2>&1; then
-    command -v java
-    return
-  fi
-  local candidate
-  for candidate in /opt/jdk-*/bin/java /usr/lib/jvm/*/bin/java; do
-    if [[ -x "${candidate}" ]]; then
-      printf '%s\n' "${candidate}"
-      return
-    fi
-  done
-  echo "Java executable not found. Set JAVA_HOME or JAVA_BIN." >&2
+if [[ ! -x "${BUNDLED_JAVA}" ]]; then
+  echo "Bundled Java runtime not found: ${BUNDLED_JAVA}" >&2
   exit 1
-}
+fi
 
-JAVA_EXECUTABLE="$(resolve_java)"
-exec "${JAVA_EXECUTABLE}" ${JAVA_OPTS:-} -jar "${JAR_PATH}"
+exec "${BUNDLED_JAVA}" ${JAVA_OPTS:-} -jar "${JAR_PATH}"

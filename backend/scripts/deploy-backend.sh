@@ -7,7 +7,7 @@ APP_USER="${APP_USER:-loadtest}"
 APP_GROUP="${APP_GROUP:-${APP_USER}}"
 SERVER_PORT="${SERVER_PORT:-8080}"
 SKIP_TESTS="${SKIP_TESTS:-false}"
-JAVA_HOME="${JAVA_HOME:-/opt/jdk-17.0.17}"
+RUNTIME_SOURCE="${RUNTIME_SOURCE:-${JAVA_HOME:-}}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BACKEND_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
@@ -16,6 +16,7 @@ PROJECT_ROOT="$(cd "${BACKEND_DIR}/.." && pwd)"
 DEPLOY_BACKEND_DIR="${APP_HOME}/backend"
 DEPLOY_DATA_DIR="${APP_HOME}/data"
 DEPLOY_LOG_DIR="${APP_HOME}/logs"
+DEPLOY_RUNTIME_DIR="${APP_HOME}/runtime"
 DEPLOY_JAR="${DEPLOY_BACKEND_DIR}/loadtest-platform.jar"
 DEPLOY_START_SH="${DEPLOY_BACKEND_DIR}/start.sh"
 SERVICE_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
@@ -48,13 +49,7 @@ ensure_user() {
 }
 
 build_backend() {
-  require_command mvn
-  cd "${BACKEND_DIR}"
-  if [[ "${SKIP_TESTS}" == "true" ]]; then
-    mvn clean package -DskipTests
-  else
-    mvn clean package
-  fi
+  SKIP_TESTS="${SKIP_TESTS}" bash "${PROJECT_ROOT}/scripts/build-app.sh"
 }
 
 latest_jar() {
@@ -65,6 +60,22 @@ latest_jar() {
     exit 1
   fi
   printf '%s\n' "${jar}"
+}
+
+validate_runtime() {
+  if [[ -z "${RUNTIME_SOURCE}" || ! -x "${RUNTIME_SOURCE}/bin/java" ]]; then
+    echo "Set RUNTIME_SOURCE to a Java 17 runtime directory." >&2
+    exit 1
+  fi
+  local java_version
+  java_version="$(sed -n 's/^JAVA_VERSION="\([^"]*\)"/\1/p' "${RUNTIME_SOURCE}/release")"
+  case "${java_version}" in
+    17|17.*) ;;
+    *)
+      echo "Java 17 runtime is required, found: ${java_version:-unknown}" >&2
+      exit 1
+      ;;
+  esac
 }
 
 backup_database() {
@@ -88,7 +99,6 @@ install_service_file() {
     -e "s|^Group=.*|Group=${APP_GROUP}|" \
     -e "s|^WorkingDirectory=.*|WorkingDirectory=${DEPLOY_BACKEND_DIR}|" \
     -e "s|^Environment=APP_HOME=.*|Environment=APP_HOME=${APP_HOME}|" \
-    -e "s|^Environment=JAVA_HOME=.*|Environment=JAVA_HOME=${JAVA_HOME}|" \
     -e "s|^Environment=SPRING_DATASOURCE_URL=.*|Environment=SPRING_DATASOURCE_URL=jdbc:sqlite:${DEPLOY_DATA_DIR}/loadtest-platform.db|" \
     -e "s|^Environment=SERVER_PORT=.*|Environment=SERVER_PORT=${SERVER_PORT}|" \
     -e "s|^ExecStart=.*|ExecStart=${DEPLOY_START_SH}|" \
@@ -102,12 +112,19 @@ deploy_files() {
   jar="$(latest_jar)"
 
   ensure_user
-  run_as_root mkdir -p "${DEPLOY_BACKEND_DIR}" "${DEPLOY_DATA_DIR}" "${DEPLOY_LOG_DIR}"
+  run_as_root mkdir -p "${DEPLOY_BACKEND_DIR}" "${DEPLOY_DATA_DIR}" "${DEPLOY_LOG_DIR}" "${DEPLOY_RUNTIME_DIR}"
   backup_database
 
   run_as_root cp "${jar}" "${DEPLOY_JAR}"
   run_as_root cp "${SOURCE_START_SH}" "${DEPLOY_START_SH}"
   run_as_root chmod +x "${DEPLOY_START_SH}"
+  if command -v rsync >/dev/null 2>&1; then
+    run_as_root rsync -a --delete "${RUNTIME_SOURCE}/" "${DEPLOY_RUNTIME_DIR}/"
+  else
+    run_as_root rm -rf "${DEPLOY_RUNTIME_DIR:?}/"*
+    run_as_root cp -a "${RUNTIME_SOURCE}/." "${DEPLOY_RUNTIME_DIR}/"
+  fi
+  run_as_root chmod +x "${DEPLOY_RUNTIME_DIR}/bin/java"
   install_service_file
   run_as_root chown -R "${APP_USER}:${APP_GROUP}" "${APP_HOME}"
 }
@@ -128,13 +145,15 @@ main() {
   echo "Backend dir: ${BACKEND_DIR}"
   echo "Deploy dir: ${APP_HOME}"
   echo "Service name: ${SERVICE_NAME}"
-  echo "JAVA_HOME: ${JAVA_HOME}"
+  echo "Runtime source: ${RUNTIME_SOURCE}"
 
+  validate_runtime
   build_backend
   deploy_files
   restart_service
 
-  echo "Backend deployment finished. Health check: http://127.0.0.1:${SERVER_PORT}/health"
+  echo "Application deployment finished. Frontend URL: http://<server-ip>:${SERVER_PORT}/"
+  echo "Health check: http://127.0.0.1:${SERVER_PORT}/health"
 }
 
 main "$@"

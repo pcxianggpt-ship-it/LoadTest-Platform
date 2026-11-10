@@ -30,7 +30,7 @@ class FrontendWebConfigTest {
         Files.writeString(frontendDirectory.resolve("index.html"), INDEX_HTML);
         Files.writeString(assetsDirectory.resolve("app.js"), "console.log('LoadTest');");
         Files.writeString(assetsDirectory.resolve("app.css"), "body { color: black; }");
-        registry.add("LOADTEST_FRONTEND_DIR", () -> frontendDirectory.toString().replace('\\', '/'));
+        registry.add("spring.web.resources.static-locations", () -> frontendDirectory.toUri().toString());
         registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + testDirectory.resolve("test.db"));
     }
 
