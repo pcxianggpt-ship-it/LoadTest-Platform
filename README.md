@@ -16,15 +16,15 @@ bash scripts/build-app.sh
 
 构建脚本依次安装前端依赖、运行测试、构建前端，再将前端文件打入后端 JAR。产物位于 `backend/target/`。直接运行该 JAR 即可同时访问页面和接口。
 
-构建包含 Java 17 运行时的离线部署包：
+在 Linux 或 WSL 中构建包含 Java 17 运行时的离线部署包：
 
 ```bash
-RUNTIME_SOURCE=/path/to/linux-java-17 PACKAGE_VERSION=v0.2.0 bash scripts/build-offline-package.sh
+./scripts/build-offline-package.sh
 ```
 
-也可使用 `RUNTIME_ARCHIVE=/path/to/linux-java-17.tar.gz` 提供运行时压缩包。运行时架构必须与目标服务器一致。`SKIP_TESTS=true` 可跳过前后端测试，但仍执行前端构建和 JAR 打包。
+脚本默认使用 `JAVA_HOME` 指向的 Java 17，否则从 `PATH` 查找 `java`。也可通过 `RUNTIME_SOURCE=/path/to/linux-java-17` 或 `RUNTIME_ARCHIVE=/path/to/linux-java-17.tar.gz` 显式指定运行时。运行时架构必须与目标服务器一致。`SKIP_TESTS=true` 可跳过前后端测试，但仍执行前端构建和 JAR 打包。
 
-离线包包含 `backend/`（应用 JAR、启动脚本和服务模板）、`runtime/`、`scripts/` 和 `manifest.txt`。默认输出到 `offline-dist/`；重复发布时使用不同的 `PACKAGE_VERSION`。
+离线包包含 `backend/`（应用 JAR、启动脚本和服务模板）、`runtime/`、`scripts/` 和 `manifest.txt`。默认输出到 `offline-dist/`，以打包时间为版本号；可用 `PACKAGE_VERSION=v0.2.0` 指定版本号。
 
 ## 部署
 

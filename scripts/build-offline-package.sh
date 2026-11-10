@@ -42,9 +42,24 @@ resolve_runtime_dir() {
     return
   fi
 
-  if [[ -z "${RUNTIME_ARCHIVE}" || ! -f "${RUNTIME_ARCHIVE}" ]]; then
-    echo "Linux Java 17 runtime is required." >&2
-    echo "Set RUNTIME_SOURCE to an extracted runtime directory, or RUNTIME_ARCHIVE to a .tar.gz archive." >&2
+  if [[ -z "${RUNTIME_ARCHIVE}" ]]; then
+    if [[ -n "${JAVA_HOME:-}" && -x "${JAVA_HOME}/bin/java" ]] && validate_runtime "${JAVA_HOME}" 2>/dev/null; then
+      (cd "${JAVA_HOME}" && pwd -P)
+      return
+    fi
+
+    local java_bin
+    if java_bin="$(command -v java)" && java_bin="$(readlink -f "${java_bin}")" && [[ -x "${java_bin}" ]]; then
+      dirname "$(dirname "${java_bin}")"
+      return
+    fi
+
+    echo "Linux Java 17 not found. Set JAVA_HOME, add java to PATH, or specify RUNTIME_SOURCE or RUNTIME_ARCHIVE." >&2
+    exit 1
+  fi
+
+  if [[ ! -f "${RUNTIME_ARCHIVE}" ]]; then
+    echo "Invalid RUNTIME_ARCHIVE, file not found: ${RUNTIME_ARCHIVE}" >&2
     exit 1
   fi
 
@@ -64,14 +79,14 @@ validate_runtime() {
   release_file="${runtime_dir}/release"
   if [[ ! -f "${release_file}" ]]; then
     echo "Runtime release file not found: ${release_file}" >&2
-    exit 1
+    return 1
   fi
   java_version="$(sed -n 's/^JAVA_VERSION="\([^"]*\)"/\1/p' "${release_file}")"
   case "${java_version}" in
     17|17.*) ;;
     *)
       echo "Java 17 runtime is required, found: ${java_version:-unknown}" >&2
-      exit 1
+      return 1
       ;;
   esac
 }
@@ -111,7 +126,11 @@ main() {
 
   echo "==> Project root: ${PROJECT_ROOT}"
   echo "==> Output dir: ${OUTPUT_DIR}"
+  echo "==> Java runtime: ${runtime_dir}"
 
+  if [[ -z "${RUNTIME_SOURCE}" && -z "${RUNTIME_ARCHIVE}" ]]; then
+    export JAVA_HOME="${runtime_dir}"
+  fi
   SKIP_TESTS="${SKIP_TESTS}" bash "${SCRIPT_DIR}/build-app.sh"
 
   echo "==> Assembling offline package"
