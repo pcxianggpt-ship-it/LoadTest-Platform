@@ -2,7 +2,7 @@
 
 ## 启动与访问
 
-平台由后端直接提供前端页面和 `/api` 接口，无需安装 Nginx。默认访问地址为 `http://<服务器IP>:8080/`，页面刷新和详情页直接访问均由后端处理。
+平台由后端直接提供前端页面和 `/api` 接口，无需安装 Nginx。离线部署默认访问地址为 `http://<服务器IP>:2800/`，直接运行 JAR 时默认端口为 8080。页面刷新和详情页直接访问均由后端处理。
 
 前端构建文件嵌入后端 JAR，页面、静态资源和接口随同一个应用包发布，无需单独部署前端目录。
 
@@ -34,6 +34,8 @@ bash scripts/build-app.sh
 tar -xzf loadtest-platform-offline-v0.2.0.tar.gz
 sudo bash loadtest-platform-v0.2.0/scripts/deploy-offline-package.sh /path/to/loadtest-platform-offline-v0.2.0.tar.gz
 ```
+
+离线部署默认使用 TCP 2800，部署前会检查端口是否已被其他进程占用。应用服务启动后，脚本会自动关闭 firewalld 和 UFW（如存在），并打印服务器的实际访问地址。
 
 使用 `SERVER_PORT` 自定义前端和接口共同使用的端口：
 

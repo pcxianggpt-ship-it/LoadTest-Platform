@@ -5,7 +5,7 @@ APP_HOME="${APP_HOME:-/opt/loadtest-platform}"
 SERVICE_NAME="${SERVICE_NAME:-loadtest-platform}"
 APP_USER="${APP_USER:-loadtest}"
 APP_GROUP="${APP_GROUP:-${APP_USER}}"
-SERVER_PORT="${SERVER_PORT:-8080}"
+SERVER_PORT="${SERVER_PORT:-2800}"
 BACKUP_DATABASE="${BACKUP_DATABASE:-true}"
 
 PACKAGE_FILE="${1:-}"
@@ -34,6 +34,53 @@ need_command() {
   if ! command -v "$1" >/dev/null 2>&1; then
     echo "Missing command: $1" >&2
     exit 1
+  fi
+}
+
+check_server_port() {
+  if [[ ! "${SERVER_PORT}" =~ ^[0-9]{1,5}$ ]] || (( 10#${SERVER_PORT} < 1 || 10#${SERVER_PORT} > 65535 )); then
+    echo "SERVER_PORT must be an integer from 1 to 65535: ${SERVER_PORT}" >&2
+    exit 1
+  fi
+  SERVER_PORT="$((10#${SERVER_PORT}))"
+
+  local listeners main_pid listener
+  listeners="$(run_as_root ss -H -ltnp "sport = :${SERVER_PORT}")"
+  if [[ -z "${listeners}" ]]; then
+    return
+  fi
+
+  main_pid="$(systemctl show -p MainPID --value "${SERVICE_NAME}.service" 2>/dev/null || true)"
+  while IFS= read -r listener; do
+    if [[ ! "${main_pid}" =~ ^[1-9][0-9]*$ || "${listener}" != *"pid=${main_pid},"* ]]; then
+      echo "TCP port ${SERVER_PORT} is already in use. Set SERVER_PORT to an available port." >&2
+      exit 1
+    fi
+  done <<< "${listeners}"
+}
+
+resolve_server_ip() {
+  local address
+  address="$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for (i = 1; i < NF; i++) if ($i == "src") print $(i + 1)}' || true)"
+  if [[ -z "${address}" ]]; then
+    address="$(ip -o -4 addr show scope global | awk 'NR == 1 {split($4, parts, "/"); print parts[1]}')"
+  fi
+  if [[ -z "${address}" ]]; then
+    address="$(ip -o -6 addr show scope global | awk 'NR == 1 {split($4, parts, "/"); print "[" parts[1] "]"}')"
+  fi
+  if [[ -z "${address}" ]]; then
+    echo "No non-loopback IP address found on this server." >&2
+    return 1
+  fi
+  printf '%s\n' "${address}"
+}
+
+disable_firewall() {
+  if systemctl is-active --quiet firewalld.service || systemctl is-enabled --quiet firewalld.service; then
+    run_as_root systemctl disable --now firewalld.service
+  fi
+  if command -v ufw >/dev/null 2>&1; then
+    run_as_root ufw disable
   fi
 }
 
@@ -140,7 +187,6 @@ publish_files() {
 }
 
 restart_backend() {
-  need_command systemctl
   run_as_root systemctl daemon-reload
   run_as_root systemctl enable "${SERVICE_NAME}"
   run_as_root systemctl restart "${SERVICE_NAME}"
@@ -149,7 +195,14 @@ restart_backend() {
 
 main() {
   need_command tar
+  need_command systemctl
+  need_command ss
+  need_command ip
   resolve_package
+  check_server_port
+
+  local server_ip
+  server_ip="$(resolve_server_ip)"
 
   echo "==> Offline package: ${PACKAGE_FILE}"
   echo "==> Deploy dir: ${APP_HOME}"
@@ -160,10 +213,11 @@ main() {
   package_root="$(extract_package)"
   publish_files "${package_root}"
   restart_backend
+  disable_firewall
 
   echo "==> Offline deployment finished"
   echo "Backend health check: http://127.0.0.1:${SERVER_PORT}/health"
-  echo "Frontend URL: http://<server-ip>:${SERVER_PORT}/"
+  echo "系统访问地址为：http://${server_ip}:${SERVER_PORT}/"
 }
 
 main "$@"
