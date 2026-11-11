@@ -6,6 +6,7 @@ import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -31,6 +32,14 @@ public class ProjectConfigController {
         return ApiResponse.ok(projectConfigService.getJMeterServer(projectId));
     }
 
+    @PostMapping("/jmeter-server/test")
+    public ApiResponse<ProjectConnectionTester.Result> testJMeterServer(
+            @PathVariable Long projectId,
+            @RequestBody JMeterServerRequest request
+    ) {
+        return ApiResponse.ok(projectConfigService.testJMeterServer(projectId, request));
+    }
+
     @GetMapping("/jmx-files")
     public ApiResponse<List<String>> listJmxFiles(@PathVariable Long projectId) {
         return ApiResponse.ok(projectConfigService.listJmxFiles(projectId));
@@ -43,6 +52,15 @@ public class ProjectConfigController {
             @Valid @RequestBody DatasourceRequest request
     ) {
         return ApiResponse.ok(projectConfigService.upsertDatasource(projectId, datasourceType, request));
+    }
+
+    @PostMapping("/datasources/{datasourceType}/test")
+    public ApiResponse<ProjectConnectionTester.Result> testDatasource(
+            @PathVariable Long projectId,
+            @PathVariable String datasourceType,
+            @RequestBody DatasourceRequest request
+    ) {
+        return ApiResponse.ok(projectConfigService.testDatasource(projectId, datasourceType, request));
     }
 
     @GetMapping("/datasources")

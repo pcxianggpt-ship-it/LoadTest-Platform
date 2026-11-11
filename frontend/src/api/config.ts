@@ -55,6 +55,11 @@ export interface DatasourcePayload {
   extraConfigJson?: string;
 }
 
+export interface ConnectionTestResult {
+  connected: boolean;
+  message: string;
+}
+
 export async function getJMeterServer(projectId: number) {
   const response = await http.get<ApiResponse<JMeterServer>>(`/api/projects/${projectId}/jmeter-server`);
   return response.data.data;
@@ -70,6 +75,14 @@ export async function upsertJMeterServer(projectId: number, payload: JMeterServe
   return response.data.data;
 }
 
+export async function testJMeterServer(projectId: number, payload: JMeterServerPayload) {
+  const response = await http.post<ApiResponse<ConnectionTestResult>>(
+    `/api/projects/${projectId}/jmeter-server/test`,
+    payload,
+  );
+  return response.data.data;
+}
+
 export async function listDatasources(projectId: number) {
   const response = await http.get<ApiResponse<Datasource[]>>(`/api/projects/${projectId}/datasources`);
   return response.data.data;
@@ -78,6 +91,14 @@ export async function listDatasources(projectId: number) {
 export async function upsertDatasource(projectId: number, datasourceType: string, payload: DatasourcePayload) {
   const response = await http.put<ApiResponse<Datasource>>(
     `/api/projects/${projectId}/datasources/${datasourceType}`,
+    payload,
+  );
+  return response.data.data;
+}
+
+export async function testDatasource(projectId: number, datasourceType: string, payload: DatasourcePayload) {
+  const response = await http.post<ApiResponse<ConnectionTestResult>>(
+    `/api/projects/${projectId}/datasources/${datasourceType}/test`,
     payload,
   );
   return response.data.data;

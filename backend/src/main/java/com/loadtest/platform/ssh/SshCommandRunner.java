@@ -1,9 +1,12 @@
 package com.loadtest.platform.ssh;
 
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.List;
 import org.apache.sshd.client.SshClient;
+import org.apache.sshd.client.auth.password.UserAuthPasswordFactory;
 import org.apache.sshd.client.channel.ClientChannel;
 import org.apache.sshd.client.channel.ClientChannelEvent;
 import org.apache.sshd.client.session.ClientSession;
@@ -13,6 +16,18 @@ import org.springframework.stereotype.Component;
 public class SshCommandRunner {
 
     private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(15);
+    private static final Duration TEST_TIMEOUT = Duration.ofSeconds(5);
+
+    public void verifyPasswordConnection(String host, int port, String username, String password) throws IOException {
+        try (SshClient client = createClient()) {
+            client.setUserAuthFactories(List.of(UserAuthPasswordFactory.INSTANCE));
+            client.start();
+            try (ClientSession session = client.connect(username, host, port).verify(TEST_TIMEOUT).getSession()) {
+                session.addPasswordIdentity(password);
+                session.auth().verify(TEST_TIMEOUT);
+            }
+        }
+    }
 
     public SshCommandResult runWithPassword(
             String host,

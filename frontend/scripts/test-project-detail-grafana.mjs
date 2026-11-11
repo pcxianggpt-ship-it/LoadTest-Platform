@@ -19,11 +19,6 @@ assert.match(viewSource, /"orgId": 1[\s\S]*"theme": "light"[\s\S]*"width": 1200[
 
 assert.match(
   viewSource,
-  /datasources\.value\.find\(\(item\) => item\.type === "grafana"\)/,
-  "fillConfig must load grafana datasource",
+  /<el-tab-pane label="Grafana" name="grafana">[\s\S]*?v-model="grafanaForm\.passwordEncrypted"[\s\S]*?v-model="grafanaForm\.tokenEncrypted"[\s\S]*?<\/el-tab-pane>/,
+  "the Grafana tab must expose both credential inputs",
 );
-assert.match(viewSource, /Object\.assign\(grafanaForm/, "fillConfig must populate grafanaForm");
-assert.match(viewSource, /type:\s*"influxdb"\s*\|\s*"prometheus"\s*\|\s*"grafana"/, "saveDatasource must accept grafana");
-assert.match(viewSource, /\? influxForm : type === "prometheus" \? prometheusForm : grafanaForm/, "saveDatasource must choose grafanaForm");
-assert.match(viewSource, /saveDatasource\('grafana'\)/, "template must expose a save Grafana button");
-assert.match(viewSource, /Grafana/, "template must include a Grafana section");

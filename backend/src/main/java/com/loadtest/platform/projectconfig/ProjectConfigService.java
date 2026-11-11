@@ -9,6 +9,7 @@ import java.nio.file.Path;
 import java.time.OffsetDateTime;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Stream;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +25,7 @@ public class ProjectConfigService {
     private final ProjectMapper projectMapper;
     private final JMeterServerMapper jMeterServerMapper;
     private final ProjectDatasourceMapper projectDatasourceMapper;
+    private final ProjectConnectionTester connectionTester;
 
     @Transactional
     public JMeterServerResponse upsertJMeterServer(Long projectId, JMeterServerRequest request) {
@@ -36,13 +38,18 @@ public class ProjectConfigService {
             server.setStatus("active");
             server.setCreatedAt(now);
         }
+        boolean sameConnection = sameSshConnection(server, request);
+        server.setSshPasswordEncrypted(credential(
+                request.getSshPasswordEncrypted(), server.getSshPasswordEncrypted(), sameConnection
+        ));
+        server.setSshPrivateKeyEncrypted(credential(
+                request.getSshPrivateKeyEncrypted(), server.getSshPrivateKeyEncrypted(), sameConnection
+        ));
         server.setName(request.getName());
         server.setHost(request.getHost());
-        server.setSshPort(request.getSshPort());
+        server.setSshPort(sshPort(request));
         server.setSshUsername(request.getSshUsername());
         server.setSshAuthType(request.getSshAuthType());
-        server.setSshPasswordEncrypted(request.getSshPasswordEncrypted());
-        server.setSshPrivateKeyEncrypted(request.getSshPrivateKeyEncrypted());
         server.setJmeterHome(request.getJmeterHome());
         server.setScriptDir(request.getScriptDir());
         server.setResultDir(request.getResultDir());
@@ -54,6 +61,17 @@ public class ProjectConfigService {
             jMeterServerMapper.updateById(server);
         }
         return JMeterServerResponse.from(server);
+    }
+
+    public ProjectConnectionTester.Result testJMeterServer(Long projectId, JMeterServerRequest request) {
+        ensureProjectExists(projectId);
+        JMeterServer saved = findJMeterServer(projectId);
+        String password = credential(
+                request.getSshPasswordEncrypted(),
+                saved == null ? null : saved.getSshPasswordEncrypted(),
+                sameSshConnection(saved, request)
+        );
+        return connectionTester.testJMeterServer(request, sshPort(request), password);
     }
 
     public JMeterServerResponse getJMeterServer(Long projectId) {
@@ -94,9 +112,7 @@ public class ProjectConfigService {
             DatasourceRequest request
     ) {
         ensureProjectExists(projectId);
-        if (!DATASOURCE_TYPES.contains(datasourceType)) {
-            throw new IllegalArgumentException("unsupported datasource type");
-        }
+        validateDatasourceType(datasourceType);
         String now = OffsetDateTime.now().toString();
         ProjectDatasource datasource = findDatasource(projectId, datasourceType);
         if (datasource == null) {
@@ -106,13 +122,7 @@ public class ProjectConfigService {
             datasource.setStatus("active");
             datasource.setCreatedAt(now);
         }
-        datasource.setName(request.getName());
-        datasource.setBaseUrl(request.getBaseUrl());
-        datasource.setDatabaseName(request.getDatabaseName());
-        datasource.setUsername(request.getUsername());
-        datasource.setPasswordEncrypted(request.getPasswordEncrypted());
-        datasource.setTokenEncrypted(request.getTokenEncrypted());
-        datasource.setExtraConfigJson(request.getExtraConfigJson());
+        applyDatasourceRequest(datasource, request);
         datasource.setUpdatedAt(now);
         if (datasource.getId() == null) {
             projectDatasourceMapper.insert(datasource);
@@ -120,6 +130,17 @@ public class ProjectConfigService {
             projectDatasourceMapper.updateById(datasource);
         }
         return DatasourceResponse.from(datasource);
+    }
+
+    public ProjectConnectionTester.Result testDatasource(Long projectId, String datasourceType, DatasourceRequest request) {
+        ensureProjectExists(projectId);
+        validateDatasourceType(datasourceType);
+        ProjectDatasource datasource = "grafana".equals(datasourceType) ? findDatasource(projectId, datasourceType) : null;
+        if (datasource == null) {
+            datasource = new ProjectDatasource();
+        }
+        applyDatasourceRequest(datasource, request);
+        return connectionTester.testDatasource(datasourceType, datasource);
     }
 
     public List<DatasourceResponse> listDatasources(Long projectId) {
@@ -136,6 +157,44 @@ public class ProjectConfigService {
         if (projectMapper.selectById(projectId) == null) {
             throw new NotFoundException("project not found");
         }
+    }
+
+    private void validateDatasourceType(String datasourceType) {
+        if (!DATASOURCE_TYPES.contains(datasourceType)) {
+            throw new IllegalArgumentException("unsupported datasource type");
+        }
+    }
+
+    private void applyDatasourceRequest(ProjectDatasource datasource, DatasourceRequest request) {
+        boolean sameConnection = Objects.equals(datasource.getBaseUrl(), request.getBaseUrl())
+                && Objects.toString(datasource.getUsername(), "").equals(Objects.toString(request.getUsername(), ""));
+        datasource.setPasswordEncrypted(credential(
+                request.getPasswordEncrypted(), datasource.getPasswordEncrypted(), sameConnection
+        ));
+        datasource.setTokenEncrypted(credential(
+                request.getTokenEncrypted(), datasource.getTokenEncrypted(), sameConnection
+        ));
+        datasource.setName(request.getName());
+        datasource.setBaseUrl(request.getBaseUrl());
+        datasource.setDatabaseName(request.getDatabaseName());
+        datasource.setUsername(request.getUsername());
+        datasource.setExtraConfigJson(request.getExtraConfigJson());
+    }
+
+    private boolean sameSshConnection(JMeterServer server, JMeterServerRequest request) {
+        return server != null
+                && Objects.equals(server.getHost(), request.getHost())
+                && Objects.equals(server.getSshPort(), sshPort(request))
+                && Objects.equals(server.getSshUsername(), request.getSshUsername())
+                && Objects.equals(server.getSshAuthType(), request.getSshAuthType());
+    }
+
+    private int sshPort(JMeterServerRequest request) {
+        return request.getSshPort() == null ? 22 : request.getSshPort();
+    }
+
+    private String credential(String supplied, String saved, boolean sameConnection) {
+        return supplied != null ? supplied : sameConnection ? saved : "";
     }
 
     private JMeterServer findJMeterServer(Long projectId) {
