@@ -28,6 +28,7 @@ const project = ref<Project>();
 const sections = ["jmeter", "influxdb", "prometheus", "grafana"] as const;
 type ConfigSection = (typeof sections)[number];
 const activeSection = ref<ConfigSection>("jmeter");
+const prometheusHelpVisible = ref(false);
 const testing = reactive<Partial<Record<ConfigSection, boolean>>>({});
 const saving = reactive<Partial<Record<ConfigSection, boolean>>>({});
 const results = reactive<Partial<Record<ConfigSection, ConnectionTestResult>>>({});
@@ -59,7 +60,9 @@ const prometheusForm = reactive({
   name: "resource-prometheus",
   baseUrl: "http://127.0.0.1:9090",
   username: "",
-  extraConfigJson: "{\"instances\":[\"127.0.0.1:9100\"]}",
+  extraConfigJson: `{
+  "instances": ["127.0.0.1:9100", "192.0.2.11:9100", "192.0.2.12:9100"]
+}`,
 });
 
 const grafanaForm = reactive({
@@ -84,8 +87,36 @@ const defaults = {
   prometheus: { ...prometheusForm },
   grafana: { ...grafanaForm },
 };
-const kubernetesExample = { k8sPods: [{ namespace: "loadtest", podRegex: "order-api-.*" }] };
-const kubernetesExampleJson = JSON.stringify(kubernetesExample, null, 2);
+const kubernetesExampleJson = `{
+  "k8sPods": [
+    { "namespace": "als9", "podRegex": "*" },
+    { "namespace": "kubemate-system", "podRegex": "traefik.*" },
+    { "namespace": "redis-sentinel", "podRegex": "*" }
+  ]
+}`;
+const prometheusScrapeExample = `scrape_configs:
+  - job_name: kubernetes-cadvisor
+    scrape_interval: 15s
+    scheme: https
+    kubernetes_sd_configs:
+      - role: node
+        api_server: https://kube-api.example.com:6443
+        authorization:
+          credentials_file: /etc/prometheus/kubernetes/token
+        tls_config:
+          ca_file: /etc/prometheus/kubernetes/ca.crt
+    authorization:
+      credentials_file: /etc/prometheus/kubernetes/token
+    tls_config:
+      ca_file: /etc/prometheus/kubernetes/ca.crt
+    relabel_configs:
+      - target_label: __address__
+        replacement: kube-api.example.com:6443
+      - source_labels: [__meta_kubernetes_node_name]
+        target_label: __metrics_path__
+        replacement: /api/v1/nodes/\${1}/proxy/metrics/cadvisor
+      - source_labels: [__meta_kubernetes_node_name]
+        target_label: node`;
 
 for (const section of sections) {
   watch(forms[section], () => { delete results[section]; });
@@ -216,7 +247,7 @@ function addKubernetesExample() {
       ElMessage.warning("扩展配置已有 k8sPods，请直接编辑现有配置。");
       return;
     }
-    prometheusForm.extraConfigJson = JSON.stringify({ ...config, ...kubernetesExample }, null, 2);
+    prometheusForm.extraConfigJson = JSON.stringify({ ...config, ...parseExtraConfig(kubernetesExampleJson) }, null, 2);
   } catch {
     ElMessage.warning("请先修正扩展配置中的 JSON，再添加示例。");
   }
@@ -371,20 +402,25 @@ watch(projectId, loadDetail, { immediate: true });
         </el-tab-pane>
 
         <el-tab-pane label="Prometheus" name="prometheus">
-          <p class="config-description">查询主机和 Kubernetes Pod 的 CPU、内存及网络指标。</p>
+          <div class="prometheus-intro">
+            <p class="config-description">查询主机和 Kubernetes Pod 的 CPU、内存及网络指标。</p>
+            <el-button size="small" @click="prometheusHelpVisible = true">Kubernetes 配置帮助</el-button>
+          </div>
           <el-form label-position="top" :disabled="isBusy('prometheus')" class="config-grid" @submit.prevent>
             <el-form-item label="名称" required><el-input v-model="prometheusForm.name" /></el-form-item>
             <el-form-item label="服务地址" required><el-input v-model="prometheusForm.baseUrl" /></el-form-item>
             <el-form-item label="扩展配置（JSON）" class="config-wide">
               <el-input v-model="prometheusForm.extraConfigJson" class="code-input" type="textarea" :autosize="{ minRows: 4, maxRows: 12 }" />
+              <p class="config-hint">主机监控时，将 <code>instances</code> 示例替换为 Prometheus 中实际的 <code>instance</code> 标签值。</p>
             </el-form-item>
           </el-form>
-          <details class="config-example">
-            <summary>查看 Kubernetes（K8s）配置示例</summary>
-            <p>平台后端须能访问 Prometheus。例如，集群内可用 <code>http://prometheus.monitoring.svc.cluster.local:9090</code>，请替换为实际的 Service 地址。</p>
-            <pre>{{ kubernetesExampleJson }}</pre>
-            <p>将 <code>namespace</code> 改为 Pod 所在的命名空间，<code>podRegex</code> 改为匹配 Pod 名称的正则。只采集 Pod 指标时，可以移除主机配置 <code>instances</code>。</p>
-            <el-button size="small" :disabled="isBusy('prometheus')" @click="addKubernetesExample">添加到扩展配置</el-button>
+          <details class="config-example" open>
+            <summary>Kubernetes 扩展配置示例</summary>
+            <pre><code>{{ kubernetesExampleJson }}</code></pre>
+            <div class="config-example-actions">
+              <p class="config-hint"><code>*</code> 匹配整个命名空间，<code>traefik.*</code> 匹配以 traefik 开头的 Pod。</p>
+              <el-button size="small" :disabled="isBusy('prometheus')" @click="addKubernetesExample">添加到扩展配置</el-button>
+            </div>
           </details>
         </el-tab-pane>
 
@@ -420,6 +456,32 @@ watch(projectId, loadDetail, { immediate: true });
         </div>
       </footer>
     </section>
+
+    <el-dialog v-model="prometheusHelpVisible" title="Prometheus 监控 Kubernetes 配置" width="760px" top="6vh" append-to-body>
+      <div class="prometheus-help" tabindex="0" role="region" aria-label="Kubernetes 监控配置步骤">
+        <section>
+          <h2>1. 准备监控账号和令牌</h2>
+          <p>在连接目标集群的机器上，用 <code>kubectl</code> 为专用 ServiceAccount 签发令牌。示例使用已有的 <code>monitoring</code> 命名空间，首次配置时创建账号。</p>
+          <pre><code>kubectl -n monitoring create serviceaccount prometheus-cadvisor
+(umask 077; kubectl -n monitoring create token prometheus-cadvisor --duration=1h &gt; token)</code></pre>
+          <p>请集群管理员为账号授予 <code>nodes</code> 的 <code>list</code>、<code>watch</code> 和 API Server 代理采集所需的 <code>nodes/proxy</code> 的 <code>get</code> 权限。<code>nodes/proxy</code> 也允许访问其他 kubelet 接口。</p>
+          <p>命令会把令牌原文写入单行文件。将令牌文件和 API Server 的 CA 证书放入 Prometheus 可读的目录，并在令牌到期前更新。容器部署时请挂载该目录，下面使用容器内的路径。</p>
+        </section>
+        <section>
+          <h2>2. 配置 Prometheus 抓取 cAdvisor</h2>
+          <p>在 <code>prometheus.yml</code> 的 <code>scrape_configs</code> 中添加以下任务。替换两处 API Server 地址、令牌和 CA 路径。两处认证配置分别用于发现节点和抓取指标。使用 <code>bearer_token_file</code> 的旧配置也应填写令牌的完整文件路径。</p>
+          <pre><code>{{ prometheusScrapeExample }}</code></pre>
+        </section>
+        <section>
+          <h2>3. 验证指标并填写项目配置</h2>
+          <ol>
+            <li>用 <code>promtool check config</code> 检查配置后重载 Prometheus。在 Prometheus 中查询 <code>up{job="kubernetes-cadvisor"}</code>，确认各节点为 <code>1</code>。</li>
+            <li>查询 <code>container_cpu_usage_seconds_total{namespace="als9"}</code>，确认有带 <code>namespace</code> 和 <code>pod</code> 标签的指标。将命名空间替换为集群中实际监控的命名空间。</li>
+            <li>在项目的 Prometheus 服务地址中填写平台后端可访问的 Prometheus 地址。将 <code>k8sPods</code> 示例添加到扩展配置，修改命名空间和 Pod 匹配规则，再测试连接并保存。仅监控 Pod 时可以移除 <code>instances</code>。</li>
+          </ol>
+        </section>
+      </div>
+    </el-dialog>
   </section>
 </template>
 
@@ -435,6 +497,20 @@ watch(projectId, loadDetail, { immediate: true });
 .config-description {
   margin: 0 0 var(--space-lg);
   color: var(--color-body);
+}
+.prometheus-intro,
+.config-example-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-xs) var(--space-base);
+}
+.prometheus-intro {
+  margin-bottom: var(--space-lg);
+}
+.prometheus-intro .config-description {
+  margin: 0;
 }
 .config-card h2 {
   margin-bottom: var(--space-base);
@@ -462,6 +538,10 @@ watch(projectId, loadDetail, { immediate: true });
   color: var(--color-body);
   font-size: 13px;
 }
+.code-input + .config-hint {
+  margin-top: var(--space-xs);
+  line-height: 1.5;
+}
 .config-example {
   margin-top: var(--space-base);
   padding: var(--space-sm) var(--space-base);
@@ -474,16 +554,46 @@ watch(projectId, loadDetail, { immediate: true });
   font-size: 14px;
   font-weight: 500;
 }
-.config-example p {
-  color: var(--color-body);
+.prometheus-help {
+  max-height: 68vh;
+  overflow-y: auto;
+  line-height: 1.6;
 }
-.config-example pre {
+.prometheus-help h2 {
+  margin: var(--space-base) 0 var(--space-xs);
+  color: var(--el-text-color-primary);
+  font-size: 16px;
+}
+.prometheus-help section:first-child h2 {
+  margin-top: 0;
+}
+.prometheus-help p,
+.prometheus-help ol {
+  margin: var(--space-xs) 0;
+  overflow-wrap: anywhere;
+}
+.prometheus-help ol {
+  padding-left: var(--space-lg);
+}
+.prometheus-help li + li {
+  margin-top: var(--space-xs);
+}
+.config-example pre,
+.prometheus-help pre {
   margin: var(--space-sm) 0;
   padding: var(--space-sm);
   overflow-x: auto;
   border-radius: var(--radius-input);
   background: var(--color-surface);
   font-size: 13px;
+}
+.prometheus-help pre {
+  background: var(--color-canvas-soft);
+}
+.config-example pre code,
+.prometheus-help pre code {
+  padding: 0;
+  background: transparent;
 }
 .config-test-result {
   margin-top: var(--space-lg);

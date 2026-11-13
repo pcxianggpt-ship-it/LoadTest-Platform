@@ -249,25 +249,25 @@ public class DefaultPrometheusMetricClient implements PrometheusMetricClient {
 
     private String podCpuAverageQuery(K8sPodSelector selector, String range) {
         return "avg_over_time((sum by(namespace,pod) (rate(container_cpu_usage_seconds_total{namespace=\""
-                + selector.namespace() + "\",pod=~\"" + selector.podRegex()
+                + selector.namespace() + "\",pod=~\"" + selector.prometheusPodRegex()
                 + "\",container!=\"\",image!=\"\"}[1m])))[" + range + ":])";
     }
 
     private String podMemoryAverageQuery(K8sPodSelector selector, String range) {
         return "avg_over_time((sum by(namespace,pod) (container_memory_working_set_bytes{namespace=\""
-                + selector.namespace() + "\",pod=~\"" + selector.podRegex()
+                + selector.namespace() + "\",pod=~\"" + selector.prometheusPodRegex()
                 + "\",container!=\"\",image!=\"\"} / 1024 / 1024))[" + range + ":])";
     }
 
     private String podNetworkReceiveQuery(K8sPodSelector selector, String range) {
         return "max_over_time((sum by(namespace,pod) (irate(container_network_receive_bytes_total{namespace=\""
-                + selector.namespace() + "\",pod=~\"" + selector.podRegex()
+                + selector.namespace() + "\",pod=~\"" + selector.prometheusPodRegex()
                 + "\"}[1m])) / 1024 / 1024)[" + range + ":])";
     }
 
     private String podNetworkTransmitQuery(K8sPodSelector selector, String range) {
         return "max_over_time((sum by(namespace,pod) (irate(container_network_transmit_bytes_total{namespace=\""
-                + selector.namespace() + "\",pod=~\"" + selector.podRegex()
+                + selector.namespace() + "\",pod=~\"" + selector.prometheusPodRegex()
                 + "\"}[1m])) / 1024 / 1024)[" + range + ":])";
     }
 

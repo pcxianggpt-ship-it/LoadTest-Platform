@@ -153,6 +153,23 @@ class DefaultPrometheusMetricClientTest {
                 .isEqualByComparingTo("4096");
     }
 
+    @Test
+    void matchesAllPodsInTheNamespaceForAnAsteriskSelector() {
+        ProjectDatasource datasource = new ProjectDatasource();
+        datasource.setBaseUrl(baseUrl);
+        DefaultPrometheusMetricClient client = new DefaultPrometheusMetricClient();
+
+        client.queryK8sPodResourceAverage(
+                datasource,
+                List.of(new K8sPodSelector("als9", "*")),
+                "2026-05-13T10:00:00+08:00",
+                "2026-05-13T10:10:00+08:00"
+        );
+
+        assertThat(queries).hasSize(4).allSatisfy(query ->
+                assertThat(query).contains("namespace=\"als9\",pod=~\".*\""));
+    }
+
     private void handleQuery(HttpExchange exchange) throws IOException {
         Map<String, String> params = TestHttp.queryParams(exchange.getRequestURI().getRawQuery());
         String query = URLDecoder.decode(params.get("query"), StandardCharsets.UTF_8);
