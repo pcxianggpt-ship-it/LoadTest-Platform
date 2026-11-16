@@ -69,6 +69,9 @@ class ExecutionControllerTest {
     private CleanupRunMapper cleanupRunMapper;
 
     @MockBean
+    private ExecutionScheduler executionScheduler;
+
+    @MockBean
     private SshCommandRunner sshCommandRunner;
 
     @MockBean
