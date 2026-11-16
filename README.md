@@ -24,6 +24,14 @@ bash scripts/build-app.sh
 
 脚本默认使用 `JAVA_HOME` 指向的 Java 17，否则从 `PATH` 查找 `java`。也可通过 `RUNTIME_SOURCE=/path/to/linux-java-17` 或 `RUNTIME_ARCHIVE=/path/to/linux-java-17.tar.gz` 显式指定运行时。运行时架构必须与目标服务器一致。`SKIP_TESTS=true` 可跳过前后端测试，但仍执行前端构建和 JAR 打包。
 
+如果 WSL 中存在 `/mnt/d/apache-maven-3.8.6/repository-LoadTest`，离线打包默认使用该 Maven 本地仓库，对应 Windows 的 `D:\apache-maven-3.8.6\repository-LoadTest`。其他环境默认使用 `~/.m2/repository`。可通过 `MAVEN_LOCAL_REPO` 指定其他 Linux 绝对路径。
+
+离线打包默认设置 `BUILD_OFFLINE=true`，Maven 和 npm 只使用本地缓存。首次构建或依赖变更后，如果本地缓存缺少依赖，可设置 `BUILD_OFFLINE=false` 联网补齐。
+
+```bash
+BUILD_OFFLINE=false ./scripts/build-offline-package.sh
+```
+
 离线包包含 `backend/`（应用 JAR、启动脚本和服务模板）、`runtime/`、`scripts/` 和 `manifest.txt`。默认输出到 `offline-dist/`，以打包时间为版本号；可用 `PACKAGE_VERSION=v0.2.0` 指定版本号。
 
 ## 部署

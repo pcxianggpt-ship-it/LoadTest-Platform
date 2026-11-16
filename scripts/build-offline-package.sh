@@ -131,7 +131,14 @@ main() {
   if [[ -z "${RUNTIME_SOURCE}" && -z "${RUNTIME_ARCHIVE}" ]]; then
     export JAVA_HOME="${runtime_dir}"
   fi
-  SKIP_TESTS="${SKIP_TESTS}" bash "${SCRIPT_DIR}/build-app.sh"
+  local default_maven_repo="${HOME}/.m2/repository"
+  local wsl_maven_repo="/mnt/d/apache-maven-3.8.6/repository-LoadTest"
+  if [[ -d "${wsl_maven_repo}" ]]; then
+    default_maven_repo="${wsl_maven_repo}"
+  fi
+  MAVEN_LOCAL_REPO="${MAVEN_LOCAL_REPO:-${default_maven_repo}}" \
+    BUILD_OFFLINE="${BUILD_OFFLINE:-true}" \
+    SKIP_TESTS="${SKIP_TESTS}" bash "${SCRIPT_DIR}/build-app.sh"
 
   echo "==> Assembling offline package"
   mkdir -p "${WORK_DIR}/backend" "${WORK_DIR}/runtime" "${WORK_DIR}/scripts"
